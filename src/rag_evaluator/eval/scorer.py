@@ -144,6 +144,12 @@ def _score_row(
         "judge_prompt_hash": prompt_hash(),
     }
     if base["system_error"]:
+        for key in (
+            "unit_mismatch", "false_refusal", "hallucinated_answer", "judge_error",
+            "faithfulness_total_claims", "faithfulness_supported",
+            "faithfulness_evaluable", "faithfulness_evidence_unavailable",
+        ):
+            base[key] = None
         return base
 
     answer: str = row["answer"]

@@ -111,6 +111,9 @@ def test_score_system_error_row(tmp_path):
     row = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
     assert row["system_error"] is True and row["correctness"] is None
     assert row["retrieval"] is None
+    assert row["unit_mismatch"] is None
+    assert row["judge_error"] is None
+    assert row["faithfulness_total_claims"] is None
 
 
 def test_score_resume_skips_done(tmp_path):
