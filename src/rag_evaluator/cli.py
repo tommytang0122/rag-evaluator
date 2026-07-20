@@ -118,6 +118,9 @@ def _cmd_score(args) -> int:
             "dataset SHA does not match the manifest recorded at collect — "
             "score the same dataset you collected, or use a new run-id"
         )
+    config = SystemConfig.model_validate(manifest["system_config"])
+    items = load_dataset(Path(args.dataset))
+    corpus = load_corpus(Path(args.corpus)) if args.corpus else None
     if args.corpus:
         corpus_sha = file_sha256(Path(args.corpus))
         recorded = manifest.get("corpus_sha256")
@@ -129,9 +132,6 @@ def _cmd_score(args) -> int:
                 "corpus SHA does not match the corpus recorded at first score — "
                 "use the same corpus, or a new run-id"
             )
-    config = SystemConfig.model_validate(manifest["system_config"])
-    items = load_dataset(Path(args.dataset))
-    corpus = load_corpus(Path(args.corpus)) if args.corpus else None
     judge = _build_judge(args)
     model = getattr(args, "model", None) or os.environ.get(
         "RAG_EVAL_JUDGE_MODEL", DEFAULT_JUDGE_MODEL

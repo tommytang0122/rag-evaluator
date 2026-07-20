@@ -196,3 +196,46 @@ def test_corpus_collision_exits_2(tmp_path, monkeypatch):
     rc = cli.main(["score", "--run-id", "rc", "--dataset", str(d),
                    "--corpus", str(corpus), "--runs-dir", runs_dir])
     assert rc == 2
+
+
+def test_bad_corpus_does_not_poison_manifest(tmp_path, monkeypatch):
+    from rag_evaluator.run_manifest import load_manifest
+
+    d = tmp_path / "dataset.jsonl"
+    d.write_text(json.dumps(DATASET_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+    y = tmp_path / "sys.yaml"
+    y.write_text(SYSTEM_YAML, encoding="utf-8")
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    run_dir = tmp_path / "runs" / "rp"
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "rp", "--runs-dir", runs_dir]) == 0
+
+    # corpus with a normalized-name collision (same collection+doc+page, different file_hash)
+    bad_corpus = tmp_path / "bad_corpus.jsonl"
+    bad_corpus.write_text(
+        json.dumps({"collection": "hr", "document": "a.pdf", "page": 1, "file_hash": "h1"}, ensure_ascii=False) + "\n"
+        + json.dumps({"collection": "hr", "document": "A.PDF", "page": 1, "file_hash": "h2"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    rc = cli.main(["score", "--run-id", "rp", "--dataset", str(d),
+                   "--corpus", str(bad_corpus), "--runs-dir", runs_dir])
+    assert rc == 2
+
+    # the failed load must NOT have stamped a corpus SHA onto the canonical manifest
+    manifest = load_manifest(run_dir)
+    assert manifest.get("corpus_sha256") is None
+
+    # a subsequent score with a valid corpus must not be rejected for corpus SHA
+    good_corpus = tmp_path / "good_corpus.jsonl"
+    good_corpus.write_text(
+        json.dumps({"collection": "hr", "document": "a.pdf", "page": 1,
+                    "text": "差旅住宿補助每日上限 2,500 元",
+                    "text_source": "content", "type": "table_figure"},
+                   ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    rc = cli.main(["score", "--run-id", "rp", "--dataset", str(d),
+                   "--corpus", str(good_corpus), "--runs-dir", runs_dir])
+    assert rc == 0
