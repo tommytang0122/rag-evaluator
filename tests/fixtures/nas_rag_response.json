@@ -1,0 +1,28 @@
+{
+  "answer": "2025年1月台塑廠區的營業收入為 12,415 NTD千元。",
+  "sources": [
+    {
+      "collection": "gavin_test",
+      "source": "C:\\nas\\營收月報.pdf",
+      "file_hash": "sha256-aaa",
+      "page": 3,
+      "type": "table_figure",
+      "image_path": "output/images/gavin_test/營收月報/page_3.png",
+      "point_id": "p-1",
+      "flow": "image",
+      "rerank_score": 0.91
+    },
+    {
+      "collection": "gavin_test",
+      "source": "C:\\nas\\營收月報.pdf",
+      "file_hash": "sha256-aaa",
+      "page": 4,
+      "type": "table_text",
+      "schema_text": "【報表標題】營收月報",
+      "content": "台塑廠區 2025年1月 營業收入 12,415 千元",
+      "point_id": "p-2",
+      "flow": "portrait_table",
+      "rerank_score": 0.55
+    }
+  ]
+}
