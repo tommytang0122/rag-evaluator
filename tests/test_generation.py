@@ -192,6 +192,29 @@ def test_faithfulness_insufficient_escalates_to_image(tmp_path):
     assert judge.calls[-1]["images"] == [img]
 
 
+def test_faithfulness_multipage_claim_sends_all_images(tmp_path):
+    img1 = tmp_path / "page_1.png"
+    img1.write_bytes(b"png1")
+    img2 = tmp_path / "page_2.png"
+    img2.write_bytes(b"png2")
+    sources = [
+        SourceRef(document="a.pdf", page=1, collection="hr", image_path=str(img1)),
+        SourceRef(document="a.pdf", page=2, collection="hr", image_path=str(img2)),
+    ]
+    corpus = Corpus([
+        CorpusPage(collection="hr", document="a.pdf", page=1, text="摘要1", text_source="schema_text"),
+        CorpusPage(collection="hr", document="a.pdf", page=2, text="摘要2", text_source="schema_text"),
+    ])
+    judge = ScriptedJudge([
+        ClaimExtraction(claims=[AlignedClaim(text="跨頁表格顯示 12,415", source_indices=[0, 1])]),
+        TextVerdicts(verdicts=[VerdictItem(verdict="insufficient")]),
+        ImageVerdict(verdict="supported"),
+    ])
+    r = score_faithfulness(_item(), "跨頁表格顯示 12,415", sources, corpus, judge)
+    assert r.status == "ok" and r.faithfulness == 1.0
+    assert judge.calls[-1]["images"] == [img1, img2]
+
+
 def test_faithfulness_textless_claim_without_image_is_unavailable():
     sources = [SourceRef(document="a.pdf", page=1)]  # no content/schema/image, no corpus
     judge = ScriptedJudge([

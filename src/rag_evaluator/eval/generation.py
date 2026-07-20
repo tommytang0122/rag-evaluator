@@ -283,16 +283,14 @@ def score_faithfulness(
                 continue
             if verdict == "unsupported":
                 continue
-            # insufficient or no text → try image escalation
-            image = next(
-                (img for s in claim_sources if (img := _page_image(s, corpus))), None
-            )
-            if image is None:
+            # insufficient or no text → escalate with ALL aligned page images
+            images = [img for s in claim_sources if (img := _page_image(s, corpus))]
+            if not images:
                 unavailable += 1
                 continue
             iv = judge.judge(
                 IMAGE_VERIFY_PROMPT.format(claim=claim.text), ImageVerdict,
-                images=[image],
+                images=images,
             )
             if iv.verdict == "supported":
                 supported += 1
