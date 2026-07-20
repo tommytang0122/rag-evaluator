@@ -1,0 +1,28 @@
+[project]
+name = "rag-evaluator"
+version = "0.1.0"
+description = "RAG QA quality evaluation CLI (retrieval + generation metrics, Gemini judge)"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2.7,<3",
+    "google-genai>=1.0,<2",
+    "PyYAML>=6,<7",
+    "python-dotenv>=1,<2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9"]
+
+[project.scripts]
+rag-eval = "rag_evaluator.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
