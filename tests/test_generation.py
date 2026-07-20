@@ -118,3 +118,95 @@ def test_judge_error_marks_row():
 def test_prompt_hash_is_stable_sha256():
     assert len(prompt_hash()) == 64
     assert "{question}" in CORRECTNESS_PROMPT
+
+
+from rag_evaluator.adapters.base import SourceRef  # noqa: E402
+from rag_evaluator.dataset.corpus import Corpus  # noqa: E402
+from rag_evaluator.dataset.models import CorpusPage  # noqa: E402
+from rag_evaluator.eval.generation import (  # noqa: E402
+    AlignedClaim,
+    ClaimExtraction,
+    ImageVerdict,
+    TextVerdicts,
+    VerdictItem,
+    score_faithfulness,
+)
+
+
+class ScriptedJudge:
+    """Returns queued results in order; records calls."""
+
+    def __init__(self, results):
+        self.results = list(results)
+        self.calls = []
+
+    def judge(self, prompt, schema, images=()):
+        self.calls.append({"prompt": prompt, "schema": schema, "images": list(images)})
+        r = self.results.pop(0)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+
+def test_faithfulness_not_applicable_for_refusal_answer():
+    item = _item()
+    r = score_faithfulness(item, "找不到相關資訊", [SourceRef(document="a.pdf", page=1)], None, ScriptedJudge([]))
+    assert r.status == "not_applicable" and r.faithfulness is None
+
+
+def test_faithfulness_no_sources_scores_zero():
+    r = score_faithfulness(_item(), "營收 12,415 千元", [], None, ScriptedJudge([]))
+    assert r.status == "no_sources" and r.faithfulness == 0.0
+
+
+def test_faithfulness_text_only_flow():
+    sources = [SourceRef(document="a.pdf", page=1, collection="hr")]
+    corpus = Corpus([CorpusPage(collection="hr", document="a.pdf", page=1, text="營收 12,415 千元", text_source="content")])
+    judge = ScriptedJudge([
+        ClaimExtraction(claims=[
+            AlignedClaim(text="營收為 12,415 千元", source_indices=[0]),
+            AlignedClaim(text="營收成長 10%", source_indices=[0]),
+        ]),
+        TextVerdicts(verdicts=[
+            VerdictItem(verdict="supported"),
+            VerdictItem(verdict="unsupported"),
+        ]),
+    ])
+    r = score_faithfulness(_item(), "營收 12,415 千元,成長 10%", sources, corpus, judge)
+    assert r.status == "ok"
+    assert r.faithfulness == 0.5 and r.total_claims == 2 and r.evaluable == 2
+
+
+def test_faithfulness_insufficient_escalates_to_image(tmp_path):
+    img = tmp_path / "page_1.png"
+    img.write_bytes(b"png")
+    sources = [SourceRef(document="a.pdf", page=1, collection="hr", image_path=str(img))]
+    corpus = Corpus([CorpusPage(collection="hr", document="a.pdf", page=1, text="摘要", text_source="schema_text")])
+    judge = ScriptedJudge([
+        ClaimExtraction(claims=[AlignedClaim(text="表格顯示 12,415", source_indices=[0])]),
+        TextVerdicts(verdicts=[VerdictItem(verdict="insufficient")]),
+        ImageVerdict(verdict="supported"),
+    ])
+    r = score_faithfulness(_item(), "表格顯示 12,415", sources, corpus, judge)
+    assert r.status == "ok" and r.faithfulness == 1.0
+    assert judge.calls[-1]["images"] == [img]
+
+
+def test_faithfulness_textless_claim_without_image_is_unavailable():
+    sources = [SourceRef(document="a.pdf", page=1)]  # no content/schema/image, no corpus
+    judge = ScriptedJudge([
+        ClaimExtraction(claims=[AlignedClaim(text="X", source_indices=[0])]),
+    ])
+    r = score_faithfulness(_item(), "有一個論斷 42", sources, None, judge)
+    assert r.status == "skipped" and r.faithfulness is None
+    assert r.evidence_unavailable == 1 and r.evaluable == 0
+
+
+def test_faithfulness_verdict_length_mismatch_is_judge_error():
+    sources = [SourceRef(document="a.pdf", page=1, content="text")]
+    judge = ScriptedJudge([
+        ClaimExtraction(claims=[AlignedClaim(text="A"), AlignedClaim(text="B")]),
+        TextVerdicts(verdicts=[VerdictItem(verdict="supported")]),  # wrong length
+    ])
+    r = score_faithfulness(_item(), "回答 42 元", sources, None, judge)
+    assert r.status == "judge_error" and r.faithfulness is None
