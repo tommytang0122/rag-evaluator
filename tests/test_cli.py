@@ -1,0 +1,99 @@
+import json
+
+import pytest
+
+from rag_evaluator import cli
+from rag_evaluator.adapters.base import RAGAnswer, SourceRef
+
+MANIFEST_ROW = {
+    "collection": "hr", "source": "/nas/a.pdf", "file_hash": "h", "page": 1,
+    "image_path": "x.png", "point_id": "p", "flow": "portrait_table",
+    "schema_text": "s", "content": "差旅住宿補助每日上限 2,500 元",
+}
+
+DATASET_ROW = {
+    "id": "q-11111111", "question": "住宿補助上限?", "answer_type": "answerable",
+    "gold_answer": "每日 2,500 元", "gold_value": {"number": 2500, "unit": "元"},
+    "tags": ["numeric"], "evidence": [{"collection": "hr", "document": "a.pdf", "page": 1}],
+}
+
+SYSTEM_YAML = """
+adapter: nas_rag
+endpoint: http://localhost:8020/v1/query
+collection_names: [hr]
+top_k: 5
+"""
+
+
+def test_corpus_from_nas_rag(tmp_path):
+    m = tmp_path / "manifest.jsonl"
+    m.write_text(json.dumps(MANIFEST_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+    out = tmp_path / "corpus.jsonl"
+    assert cli.main(["corpus", "from-nas-rag", "--manifest", str(m), "-o", str(out)]) == 0
+    row = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert row["text_source"] == "content" and row["type"] == "table_text"
+
+
+def test_dataset_finalize(tmp_path):
+    review = tmp_path / "review.csv"
+    review.write_text(
+        "question,gold_answer,gold_value,answer_type,tags,evidence,"
+        "source_excerpt,generation_basis,approved\n"
+        '住宿補助上限?,每日 2500 元,,answerable,numeric,hr|a.pdf|1,,,yes\n',
+        encoding="utf-8",
+    )
+    out = tmp_path / "dataset.jsonl"
+    assert cli.main(["dataset", "finalize", "--review", str(review), "-o", str(out)]) == 0
+    assert len(out.read_text(encoding="utf-8").splitlines()) == 1
+
+
+class _StubAdapter:
+    def ask(self, question):
+        return RAGAnswer(
+            answer="每日 2,500 元",
+            sources=[SourceRef(document="a.pdf", page=1, collection="hr",
+                               content="差旅住宿補助每日上限 2,500 元")],
+            latency_ms=3,
+        )
+
+
+class _StubJudge:
+    def judge(self, prompt, schema, images=()):
+        from rag_evaluator.eval.generation import ClaimExtraction
+        return ClaimExtraction(claims=[])
+
+
+def _write_inputs(tmp_path):
+    d = tmp_path / "dataset.jsonl"
+    d.write_text(json.dumps(DATASET_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+    y = tmp_path / "sys.yaml"
+    y.write_text(SYSTEM_YAML, encoding="utf-8")
+    return d, y
+
+
+def test_collect_score_report_pipeline(tmp_path, monkeypatch):
+    d, y = _write_inputs(tmp_path)
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 0
+    assert cli.main(["score", "--run-id", "r1", "--dataset", str(d),
+                     "--runs-dir", runs_dir]) == 0
+    assert cli.main(["report", "--run-id", "r1", "--dataset", str(d),
+                     "--runs-dir", runs_dir]) == 0
+    report = (tmp_path / "runs" / "r1" / "report.md").read_text(encoding="utf-8")
+    assert "mean_correctness" in report
+
+
+def test_collect_resume_mismatch_exits_2(tmp_path, monkeypatch):
+    d, y = _write_inputs(tmp_path)
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    runs_dir = str(tmp_path / "runs")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 0
+    # change dataset content → resume must refuse
+    d.write_text(json.dumps({**DATASET_ROW, "question": "改了?"},
+                            ensure_ascii=False) + "\n", encoding="utf-8")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 2
