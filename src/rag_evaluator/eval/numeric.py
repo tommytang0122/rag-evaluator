@@ -22,7 +22,7 @@ DEFAULT_UNITS: dict[str, tuple[str, Decimal]] = {
 }
 
 _FULLWIDTH = str.maketrans("０１２３４５６７８９．，－", "0123456789.,-")
-_NUM_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_NUM_RE = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?")
 
 
 @dataclass(frozen=True)

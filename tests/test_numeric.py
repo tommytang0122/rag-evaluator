@@ -71,3 +71,8 @@ def test_tolerance():
         "12,414 千元", D("12415"), "千元", tolerance=D("1000")
     )  # canonical diff 1000 ≤ tolerance
     assert r.status == "match"
+
+
+def test_comma_adjacent_numbers_not_merged():
+    vals = extract_values("3,500,2,100")
+    assert [v.value for v in vals] == [D("3500"), D("2100")]
