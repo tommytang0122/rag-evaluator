@@ -8,6 +8,14 @@ from rag_evaluator.adapters.base import RAGSystem, SupportsTopKOverride
 from rag_evaluator.adapters.nas_rag import NasRagAdapter, build_adapter
 from rag_evaluator.config import SystemConfig
 
+# Contract fixture: placeholder shaped from the archived nas-rag qa_api.py payload.
+# Before the first real evaluation, re-record it against the live service and re-run
+# this test file:
+#   curl -s -X POST http://<host>:8020/v1/query -H 'Content-Type: application/json' \
+#     -d '{"query":"2025年1月營收?","collection_names":["gavin_test"],"top_k":5}' \
+#     > tests/fixtures/nas_rag_response.json
+# The contract test asserts only fields the evaluator relies on, so a re-recorded
+# fixture with extra fields keeps passing.
 FIXTURE = Path(__file__).parent / "fixtures" / "nas_rag_response.json"
 
 CFG = SystemConfig(
