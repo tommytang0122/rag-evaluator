@@ -25,8 +25,16 @@ class Corpus:
         for p in pages:
             key = (p.collection, normalize_document(p.document), p.page)
             existing = self._index.get(key)
-            if existing is not None and existing.file_hash != p.file_hash:
-                raise CorpusError(f"document name collision after normalization: {key}")
+            if existing is not None:
+                same_page = (
+                    existing.file_hash is not None
+                    and existing.file_hash == p.file_hash
+                )
+                if not same_page:
+                    raise CorpusError(
+                        f"document name collision after normalization: {key} "
+                        "(add file_hash to disambiguate, or dedupe the corpus)"
+                    )
             self._index[key] = p
 
     def lookup(

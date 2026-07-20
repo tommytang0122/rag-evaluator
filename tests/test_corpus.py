@@ -77,6 +77,33 @@ def test_corpus_collision_detected():
         Corpus(pages)
 
 
+def test_corpus_collision_both_hashes_none_raises():
+    pages = [
+        CorpusPage(collection="hr", document="a/report.pdf", page=1, file_hash=None),
+        CorpusPage(collection="hr", document="b/REPORT.PDF", page=1, file_hash=None),
+    ]
+    with pytest.raises(CorpusError, match="collision"):
+        Corpus(pages)
+
+
+def test_corpus_collision_one_hash_missing_raises():
+    pages = [
+        CorpusPage(collection="hr", document="a/report.pdf", page=1, file_hash="h1"),
+        CorpusPage(collection="hr", document="b/REPORT.PDF", page=1, file_hash=None),
+    ]
+    with pytest.raises(CorpusError, match="collision"):
+        Corpus(pages)
+
+
+def test_corpus_same_hash_dedupes():
+    pages = [
+        CorpusPage(collection="hr", document="a/report.pdf", page=1, file_hash="h1"),
+        CorpusPage(collection="hr", document="b/REPORT.PDF", page=1, file_hash="h1"),
+    ]
+    c = Corpus(pages)
+    assert c.lookup("report.pdf", 1, collection="hr") is not None
+
+
 def test_corpus_roundtrip(tmp_path):
     pages = [CorpusPage(collection="hr", document="x.pdf", page=1, text="hi", text_source="content")]
     out = tmp_path / "corpus.jsonl"
