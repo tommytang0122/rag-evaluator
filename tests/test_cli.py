@@ -109,6 +109,73 @@ def test_malformed_yaml_system_config_exits_2(tmp_path):
     assert rc == 2
 
 
+def test_score_with_changed_dataset_exits_2(tmp_path, monkeypatch):
+    d, y = _write_inputs(tmp_path)
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 0
+    # modify the dataset (different question/gold) → SHA changes
+    d.write_text(json.dumps({**DATASET_ROW, "id": "q-22222222",
+                             "question": "不同問題?"}, ensure_ascii=False) + "\n",
+                 encoding="utf-8")
+    rc = cli.main(["score", "--run-id", "r1", "--dataset", str(d),
+                   "--runs-dir", runs_dir])
+    assert rc == 2
+
+
+def test_report_with_changed_dataset_exits_2(tmp_path, monkeypatch):
+    d, y = _write_inputs(tmp_path)
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 0
+    assert cli.main(["score", "--run-id", "r1", "--dataset", str(d),
+                     "--runs-dir", runs_dir]) == 0
+    # modify the dataset after score → report must refuse
+    d.write_text(json.dumps({**DATASET_ROW, "id": "q-22222222",
+                             "question": "不同問題?"}, ensure_ascii=False) + "\n",
+                 encoding="utf-8")
+    rc = cli.main(["report", "--run-id", "r1", "--dataset", str(d),
+                   "--runs-dir", runs_dir])
+    assert rc == 2
+
+
+def test_score_corpus_mismatch_exits_2(tmp_path, monkeypatch):
+    d, y = _write_inputs(tmp_path)
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
+                     "--run-id", "r1", "--runs-dir", runs_dir]) == 0
+
+    corpus1 = tmp_path / "corpus1.jsonl"
+    corpus1.write_text(
+        json.dumps({"collection": "hr", "document": "a.pdf", "page": 1,
+                    "text": "差旅住宿補助每日上限 2,500 元",
+                    "text_source": "content", "type": "table_figure"},
+                   ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    rc = cli.main(["score", "--run-id", "r1", "--dataset", str(d),
+                   "--corpus", str(corpus1), "--runs-dir", runs_dir])
+    assert rc == 0
+
+    corpus2 = tmp_path / "corpus2.jsonl"
+    corpus2.write_text(
+        json.dumps({"collection": "hr", "document": "a.pdf", "page": 1,
+                    "text": "不同的內容",
+                    "text_source": "content", "type": "table_figure"},
+                   ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    rc = cli.main(["score", "--run-id", "r1", "--dataset", str(d),
+                   "--corpus", str(corpus2), "--runs-dir", runs_dir])
+    assert rc == 2
+
+
 def test_corpus_collision_exits_2(tmp_path, monkeypatch):
     d = tmp_path / "dataset.jsonl"
     d.write_text(json.dumps(DATASET_ROW, ensure_ascii=False) + "\n", encoding="utf-8")

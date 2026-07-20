@@ -28,6 +28,7 @@ from rag_evaluator.run_manifest import (
     RunManifestMismatch,
     build_collect_manifest,
     ensure_consistent,
+    file_sha256,
     load_manifest,
     load_named_manifest,
     save_manifest,
@@ -112,6 +113,22 @@ def _cmd_score(args) -> int:
     manifest = load_manifest(run_dir)
     if manifest is None:
         raise RunManifestMismatch(f"no run_manifest.json in {run_dir} — run collect first")
+    if file_sha256(Path(args.dataset)) != manifest.get("dataset_sha256"):
+        raise RunManifestMismatch(
+            "dataset SHA does not match the manifest recorded at collect — "
+            "score the same dataset you collected, or use a new run-id"
+        )
+    if args.corpus:
+        corpus_sha = file_sha256(Path(args.corpus))
+        recorded = manifest.get("corpus_sha256")
+        if recorded is None:
+            manifest["corpus_sha256"] = corpus_sha
+            save_manifest(run_dir, manifest)  # first score with a corpus stamps it
+        elif recorded != corpus_sha:
+            raise RunManifestMismatch(
+                "corpus SHA does not match the corpus recorded at first score — "
+                "use the same corpus, or a new run-id"
+            )
     config = SystemConfig.model_validate(manifest["system_config"])
     items = load_dataset(Path(args.dataset))
     corpus = load_corpus(Path(args.corpus)) if args.corpus else None
@@ -152,6 +169,8 @@ def _cmd_report(args) -> int:
         manifest = load_named_manifest(run_dir, score_manifest_name(args.rescore_tag))
     if manifest is None:
         manifest = load_manifest(run_dir)
+    if manifest and file_sha256(Path(args.dataset)) != manifest.get("dataset_sha256"):
+        raise RunManifestMismatch("dataset SHA does not match the run manifest")
     items = load_dataset(Path(args.dataset))
     scores = _read_scores(run_dir, args.rescore_tag)
     baseline_scores = None
