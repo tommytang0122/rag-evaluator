@@ -109,6 +109,19 @@ def test_score_rule_numeric_row_with_diagnostics(tmp_path):
     assert load_manifest(run_dir)["judge_model"] == "gemini-test"
 
 
+def test_score_number_mismatch_has_numeric_signature(tmp_path):
+    raw = [
+        {"qid": "q-1", "run": 0, "kind": "answer", "answer": "營收為 13,000 千元",
+         "sources": [SRC3], "latency_ms": 7, "error": None},
+    ]
+    run_dir = _run_dir(tmp_path, raw)
+    out = _score(run_dir)
+    row = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert row["correctness"] == 0
+    assert row["numeric_canonical"] is None
+    assert row["answer_numeric_signature"] == "13000000"
+
+
 def test_score_system_error_row(tmp_path):
     raw = [{"qid": "q-1", "run": 0, "kind": "answer", "answer": None,
             "sources": None, "latency_ms": None, "error": "system_error"}]
@@ -120,6 +133,7 @@ def test_score_system_error_row(tmp_path):
     assert row["unit_mismatch"] is None
     assert row["judge_error"] is None
     assert row["faithfulness_total_claims"] is None
+    assert row["answer_numeric_signature"] is None
 
 
 def test_score_resume_skips_done(tmp_path):

@@ -15,7 +15,7 @@ from rag_evaluator.eval.generation import (
     score_correctness,
     score_faithfulness,
 )
-from rag_evaluator.eval.numeric import NUMERIC_RULES_VERSION
+from rag_evaluator.eval.numeric import NUMERIC_RULES_VERSION, extract_values
 from rag_evaluator.eval.refusal import DEFAULT_REFUSAL_PHRASES, refusal_phrases_hash
 from rag_evaluator.eval.retrieval import (
     all_evidence_hit,
@@ -128,6 +128,7 @@ def _score_row(
         "refusal_state": None,
         "numeric_status": None,
         "numeric_canonical": None,
+        "answer_numeric_signature": None,
         "unit_mismatch": False,
         "false_refusal": False,
         "hallucinated_answer": False,
@@ -148,6 +149,7 @@ def _score_row(
             "unit_mismatch", "false_refusal", "hallucinated_answer", "judge_error",
             "faithfulness_total_claims", "faithfulness_supported",
             "faithfulness_evaluable", "faithfulness_evidence_unavailable",
+            "answer_numeric_signature",
         ):
             base[key] = None
         return base
@@ -181,6 +183,10 @@ def _score_row(
             base["attribution"] = attribute_misses(
                 item.evidence, sources, probe_sources, top_k
             )
+
+    base["answer_numeric_signature"] = ",".join(
+        sorted(str(v.canonical) for v in extract_values(answer))
+    )
 
     corr = score_correctness(
         item, answer, judge, refusal_phrases=refusal_phrases, tolerance=tolerance

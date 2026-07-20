@@ -140,8 +140,8 @@ def _multi_run(scores: list[dict]) -> list[str]:
         if len(rows) < 2:
             continue
         same_corr = len({x.get("correctness") for x in rows}) == 1
-        same_num = len({x.get("numeric_canonical") for x in rows}) == 1
-        agreement.append(1.0 if same_corr and same_num else 0.0)
+        same_sig = len({x.get("answer_numeric_signature") for x in rows}) == 1
+        agreement.append(1.0 if same_corr and same_sig else 0.0)
     return [
         "", "## 多次執行", "",
         f"- mean_correctness(逐 run):"

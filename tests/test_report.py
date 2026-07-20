@@ -76,6 +76,30 @@ def test_multi_run_metrics_present_when_runs_gt_1():
     assert "agreement_rate" in md
 
 
+def test_multi_run_agreement_rate_catches_different_wrong_numbers():
+    # Both runs are wrong (correctness=0, numeric_canonical=None, as rule
+    # scoring leaves it on mismatch) but they extracted DIFFERENT numbers
+    # from the answer text -> this is real answer instability and must
+    # NOT be reported as perfect agreement.
+    scores = [
+        _row("q-1", run=0, correctness=0, numeric_status="number_mismatch",
+             numeric_canonical=None, answer_numeric_signature="12415000"),
+        _row("q-1", run=1, correctness=0, numeric_status="number_mismatch",
+             numeric_canonical=None, answer_numeric_signature="13000000"),
+    ]
+    md = build_report(scores=scores, items=ITEMS)
+    assert "agreement_rate:0.000" in md
+
+
+def test_multi_run_agreement_rate_perfect_when_same_signature():
+    scores = [
+        _row("q-1", run=0, answer_numeric_signature="12415000"),
+        _row("q-1", run=1, answer_numeric_signature="12415000"),
+    ]
+    md = build_report(scores=scores, items=ITEMS)
+    assert "agreement_rate:1.000" in md
+
+
 def test_baseline_paired_comparison():
     scores = [_row("q-1")]
     baseline = [_row("q-1", correctness=0, faithfulness=0.0)]
