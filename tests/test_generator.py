@@ -103,3 +103,18 @@ def test_finalize_rejects_duplicate_questions(tmp_path):
     write_review_csv([row, dict(row)], review)
     with pytest.raises(ValueError, match="duplicate"):
         finalize_dataset(review, tmp_path / "d.jsonl")
+
+
+def test_vision_prompt_has_injection_guard():
+    from rag_evaluator.dataset.generator import GEN_VISION_PROMPT
+    assert "忽略" in GEN_VISION_PROMPT
+
+
+def test_sample_pages_same_name_across_collections(tmp_path):
+    from rag_evaluator.dataset.models import CorpusPage
+    corpus = Corpus([
+        CorpusPage(collection="a", document="policy.pdf", page=1),
+        CorpusPage(collection="b", document="policy.pdf", page=1),
+    ])
+    picked = sample_pages(corpus, None, random.Random(0))
+    assert {(p.collection, p.document) for p in picked} == {("a", "policy.pdf"), ("b", "policy.pdf")}
