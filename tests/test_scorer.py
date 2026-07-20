@@ -4,7 +4,13 @@ from rag_evaluator.config import DiagnosticsConfig
 from rag_evaluator.dataset.corpus import Corpus
 from rag_evaluator.dataset.models import CorpusPage, DatasetItem
 from rag_evaluator.eval.scorer import score_run
-from rag_evaluator.run_manifest import build_collect_manifest, load_manifest, save_manifest
+from rag_evaluator.run_manifest import (
+    build_collect_manifest,
+    load_manifest,
+    load_named_manifest,
+    save_manifest,
+    score_manifest_name,
+)
 
 ITEM = DatasetItem.model_validate(
     {
@@ -134,3 +140,27 @@ def test_rescore_tag_writes_separate_file(tmp_path):
     out2 = _score(run_dir, rescore_tag="prompt-v2")
     assert out2.name == "scores-prompt-v2.jsonl"
     assert out2.exists() and (run_dir / "scores.jsonl").exists()
+
+
+def test_rescore_tag_writes_sidecar_manifest_and_preserves_canonical(tmp_path):
+    raw = [{"qid": "q-1", "run": 0, "kind": "answer", "answer": "營收為 12,415 千元",
+            "sources": [SRC3], "latency_ms": 7, "error": None}]
+    run_dir = _run_dir(tmp_path, raw)
+    _score(run_dir, judge_model="gemini-original")
+
+    out2 = _score(run_dir, rescore_tag="prompt-v2", judge_model="gemini-rescore")
+    assert out2.name == "scores-prompt-v2.jsonl"
+    assert out2.exists()
+
+    # tag-scoped sidecar manifest holds the rescore judge
+    sidecar = load_named_manifest(run_dir, score_manifest_name("prompt-v2"))
+    assert sidecar is not None
+    assert sidecar["judge_model"] == "gemini-rescore"
+
+    # canonical manifest is unchanged
+    assert load_manifest(run_dir)["judge_model"] == "gemini-original"
+
+    # a subsequent plain (non-rescore) score with the ORIGINAL judge must
+    # still be resumable — it must not raise RunManifestMismatch.
+    _score(run_dir, judge_model="gemini-original")
+    assert load_manifest(run_dir)["judge_model"] == "gemini-original"

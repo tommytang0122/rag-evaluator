@@ -68,7 +68,7 @@ def score_run(
             "refusal_phrases_hash": refusal_phrases_hash(refusal_phrases),
             "numeric_rules_version": NUMERIC_RULES_VERSION,
         },
-        allow_mismatch=rescore_tag is not None,
+        rescore_tag=rescore_tag,
     )
     scores_path = run_dir / (
         f"scores-{rescore_tag}.jsonl" if rescore_tag else "scores.jsonl"

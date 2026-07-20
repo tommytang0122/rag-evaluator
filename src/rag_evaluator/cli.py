@@ -29,7 +29,9 @@ from rag_evaluator.run_manifest import (
     build_collect_manifest,
     ensure_consistent,
     load_manifest,
+    load_named_manifest,
     save_manifest,
+    score_manifest_name,
 )
 
 DEFAULT_JUDGE_MODEL = "gemini-2.5-flash"
@@ -145,7 +147,11 @@ def _read_scores(run_dir: Path, rescore_tag: str | None) -> list[dict]:
 
 def _cmd_report(args) -> int:
     run_dir = _run_dir(args)
-    manifest = load_manifest(run_dir)
+    manifest = None
+    if args.rescore_tag:
+        manifest = load_named_manifest(run_dir, score_manifest_name(args.rescore_tag))
+    if manifest is None:
+        manifest = load_manifest(run_dir)
     items = load_dataset(Path(args.dataset))
     scores = _read_scores(run_dir, args.rescore_tag)
     baseline_scores = None

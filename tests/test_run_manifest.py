@@ -7,8 +7,10 @@ from rag_evaluator.run_manifest import (
     ensure_consistent,
     file_sha256,
     load_manifest,
+    load_named_manifest,
     merge_score_fields,
     save_manifest,
+    score_manifest_name,
 )
 
 
@@ -51,7 +53,7 @@ def test_ensure_consistent_raises_with_diff_keys(tmp_path):
         ensure_consistent(m1, m2, COLLECT_KEYS)
 
 
-def test_merge_score_fields(tmp_path):
+def test_merge_score_fields_canonical_is_strict(tmp_path):
     run_dir = tmp_path / "run1"
     run_dir.mkdir()
     save_manifest(run_dir, _manifest(tmp_path))
@@ -66,8 +68,48 @@ def test_merge_score_fields(tmp_path):
     assert load_manifest(run_dir)["judge_model"] == "gemini-2.5-flash"
     # same fields again → ok
     merge_score_fields(run_dir, fields)
-    # changed prompt without allow_mismatch → refuse
+    # changed prompt on the canonical path (rescore_tag=None) → refuse
     with pytest.raises(RunManifestMismatch, match="judge_prompt_hash"):
         merge_score_fields(run_dir, {**fields, "judge_prompt_hash": "h2"})
-    # rescore path allows it
-    merge_score_fields(run_dir, {**fields, "judge_prompt_hash": "h2"}, allow_mismatch=True)
+
+
+def test_merge_score_fields_rescore_writes_sidecar(tmp_path):
+    run_dir = tmp_path / "run1"
+    run_dir.mkdir()
+    collect_manifest = _manifest(tmp_path)
+    save_manifest(run_dir, collect_manifest)
+    fields = {
+        "judge_model": "gemini-2.5-flash",
+        "judge_prompt_version": "v1",
+        "judge_prompt_hash": "h",
+        "refusal_phrases_hash": "r",
+        "numeric_rules_version": "v1",
+    }
+    merge_score_fields(run_dir, fields)  # canonical stamped first, as in real usage
+
+    # rescore with different judge fields must NOT raise, and must not
+    # touch the canonical manifest.
+    merge_score_fields(run_dir, {**fields, "judge_model": "gemini-2.5-pro",
+                                  "judge_prompt_hash": "h2"}, rescore_tag="t1")
+
+    sidecar_name = score_manifest_name("t1")
+    assert sidecar_name == "run_manifest-t1.json"
+    sidecar = load_named_manifest(run_dir, sidecar_name)
+    assert sidecar["judge_model"] == "gemini-2.5-pro"
+    assert sidecar["judge_prompt_hash"] == "h2"
+    # sidecar inherits collect keys from the canonical manifest
+    for k in COLLECT_KEYS:
+        assert sidecar[k] == collect_manifest[k]
+
+    # canonical manifest is unchanged
+    assert load_manifest(run_dir)["judge_model"] == "gemini-2.5-flash"
+    assert load_manifest(run_dir)["judge_prompt_hash"] == "h"
+
+    # resuming the same tag with the same fields is fine
+    merge_score_fields(run_dir, {**fields, "judge_model": "gemini-2.5-pro",
+                                  "judge_prompt_hash": "h2"}, rescore_tag="t1")
+
+    # resuming the same tag with DIFFERENT fields raises against the sidecar
+    with pytest.raises(RunManifestMismatch, match="judge_prompt_hash"):
+        merge_score_fields(run_dir, {**fields, "judge_model": "gemini-2.5-pro",
+                                      "judge_prompt_hash": "h3"}, rescore_tag="t1")

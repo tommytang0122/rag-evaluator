@@ -56,17 +56,29 @@ def build_collect_manifest(
     }
 
 
-def save_manifest(run_dir: Path, manifest: dict) -> None:
-    (Path(run_dir) / MANIFEST_NAME).write_text(
+def score_manifest_name(rescore_tag: str | None) -> str:
+    return MANIFEST_NAME if rescore_tag is None else f"run_manifest-{rescore_tag}.json"
+
+
+def save_named_manifest(run_dir: Path, name: str, manifest: dict) -> None:
+    (Path(run_dir) / name).write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
-def load_manifest(run_dir: Path) -> dict | None:
-    p = Path(run_dir) / MANIFEST_NAME
+def load_named_manifest(run_dir: Path, name: str) -> dict | None:
+    p = Path(run_dir) / name
     if not p.exists():
         return None
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+def save_manifest(run_dir: Path, manifest: dict) -> None:
+    save_named_manifest(run_dir, MANIFEST_NAME, manifest)
+
+
+def load_manifest(run_dir: Path) -> dict | None:
+    return load_named_manifest(run_dir, MANIFEST_NAME)
 
 
 def ensure_consistent(existing: dict, candidate: dict, keys: list[str]) -> None:
@@ -79,13 +91,41 @@ def ensure_consistent(existing: dict, candidate: dict, keys: list[str]) -> None:
 
 
 def merge_score_fields(
-    run_dir: Path, fields: dict, *, allow_mismatch: bool = False
+    run_dir: Path, fields: dict, *, rescore_tag: str | None = None
 ) -> dict:
-    manifest = load_manifest(run_dir)
-    if manifest is None:
+    """Stamp judge/score provenance fields onto a run manifest.
+
+    rescore_tag=None (canonical): mutates run_manifest.json directly and
+    raises RunManifestMismatch if SCORE_KEYS drift from what's already
+    stamped there (strict — this is the manifest a resumed plain `score`
+    checks against).
+
+    rescore_tag="<tag>": writes to a tag-scoped sidecar
+    run_manifest-<tag>.json instead, seeded from the canonical manifest's
+    COLLECT_KEYS so it still describes the same collect run. A brand-new
+    sidecar accepts any judge fields (no prior tagged run to conflict
+    with). If the sidecar already exists (resuming the same rescore tag),
+    its own previously-stamped SCORE_KEYS are checked for drift, same as
+    the canonical path. The canonical run_manifest.json is never touched.
+    """
+    run_dir = Path(run_dir)
+    canonical = load_manifest(run_dir)
+    if canonical is None:
         raise RunManifestMismatch(f"no {MANIFEST_NAME} in {run_dir}")
-    if any(k in manifest for k in SCORE_KEYS) and not allow_mismatch:
-        ensure_consistent(manifest, {**manifest, **fields}, SCORE_KEYS)
-    manifest.update(fields)
-    save_manifest(run_dir, manifest)
+
+    if rescore_tag is None:
+        manifest = canonical
+        if any(k in manifest for k in SCORE_KEYS):
+            ensure_consistent(manifest, {**manifest, **fields}, SCORE_KEYS)
+        manifest.update(fields)
+        save_manifest(run_dir, manifest)
+        return manifest
+
+    name = score_manifest_name(rescore_tag)
+    existing = load_named_manifest(run_dir, name)
+    base = existing if existing is not None else canonical
+    manifest = {**base, **fields}
+    if existing is not None and any(k in existing for k in SCORE_KEYS):
+        ensure_consistent(existing, manifest, SCORE_KEYS)
+    save_named_manifest(run_dir, name, manifest)
     return manifest
