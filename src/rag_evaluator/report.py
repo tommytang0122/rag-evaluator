@@ -76,6 +76,8 @@ def _overview(scores: list[dict], items: list[DatasetItem]) -> list[str]:
     refusal = [r for r in ok if by_id.get(r["qid"], None) and by_id[r["qid"]].answer_type == "refusal"]
     judged = [r for r in ok if r.get("method") == "judge"]
     judge_ok = [r for r in judged if not r.get("judge_error")]
+    faith_judged = [r for r in ok if r.get("faithfulness_status") in ("ok", "skipped", "judge_error")]
+    faith_judge_ok = [r for r in faith_judged if r.get("faithfulness_status") != "judge_error"]
 
     def rate(rows: list[dict], flag: str) -> str:
         return _fmt(mean([1.0 if r.get(flag) else 0.0 for r in rows]) if rows else None)
@@ -87,14 +89,17 @@ def _overview(scores: list[dict], items: list[DatasetItem]) -> list[str]:
         f"- hallucinated_answer 率(分母=refusal {len(refusal)}):{rate(refusal, 'hallucinated_answer')}",
         f"- refusal_accuracy(分母=refusal {len(refusal)}):"
         + _fmt(_safe_mean([1.0 if r.get("correctness") == 2 else 0.0 for r in refusal])),
-        f"- judge_coverage:{_fmt(len(judge_ok) / len(judged) if judged else None)}",
+        f"- correctness_judge_coverage:{_fmt(len(judge_ok) / len(judged) if judged else None)}",
+        f"- faithfulness_judge_coverage:{_fmt(len(faith_judge_ok) / len(faith_judged) if faith_judged else None)}",
         f"- faithfulness_evaluable_claim_rate 平均:"
         + _fmt(_safe_mean([r["faithfulness_evaluable_claim_rate"] for r in ok
                            if r.get("faithfulness_evaluable_claim_rate") is not None])),
         f"- 平均延遲 ms:"
         + _fmt(_safe_mean([float(r["latency_ms"]) for r in ok if r.get("latency_ms") is not None])),
         f"- system_error 筆數:{sum(1 for r in scores if r.get('system_error'))}",
-        f"- judge_error 筆數:{sum(1 for r in scores if r.get('judge_error'))}",
+        f"- correctness judge_error 筆數:{sum(1 for r in scores if r.get('judge_error'))}",
+        f"- faithfulness judge_error 筆數:"
+        + f"{sum(1 for r in scores if r.get('faithfulness_status') == 'judge_error')}",
     ]
     return lines
 

@@ -92,3 +92,19 @@ def test_worst_cases_listed():
     scores = [_row("q-1", correctness=0, judge_reason="數字錯", method="judge")]
     md = build_report(scores=scores, items=ITEMS)
     assert "## 最差案例" in md and "q-1" in md
+
+
+def test_faithfulness_judge_error_counted_separately_from_correctness():
+    scores = [
+        # rule_numeric correctness (judge_error=False) but faithfulness judge failed
+        _row("q-1", method="rule_numeric", judge_error=False,
+             faithfulness=None, faithfulness_status="judge_error"),
+        # a normal judge-scored row whose correctness judge failed (distinct case)
+        _row("q-2", method="judge", judge_error=True,
+             correctness=None, judge_reason=None,
+             faithfulness=1.0, faithfulness_status="ok"),
+    ]
+    md = build_report(scores=scores, items=ITEMS)
+    assert "faithfulness judge_error 筆數:1" in md
+    assert "correctness judge_error 筆數:1" in md
+    assert "faithfulness_judge_coverage" in md
