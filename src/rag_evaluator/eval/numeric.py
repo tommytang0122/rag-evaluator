@@ -56,6 +56,24 @@ def extract_values(
     return out
 
 
+def gold_dimension(
+    unit: str | None, units: Mapping[str, tuple[str, Decimal]] = DEFAULT_UNITS
+) -> str:
+    return _resolve_gold_unit(unit, units)[0]
+
+
+def answer_signature(
+    answer: str,
+    *,
+    dimension: str | None = None,
+    units: Mapping[str, tuple[str, Decimal]] = DEFAULT_UNITS,
+) -> str:
+    values = extract_values(answer, units)
+    if dimension is not None:
+        values = [v for v in values if v.dimension == dimension]
+    return ",".join(sorted(str(v.canonical) for v in values))
+
+
 @dataclass(frozen=True)
 class NumericResult:
     status: str  # match | unit_mismatch | number_mismatch | no_number | ambiguous

@@ -15,7 +15,11 @@ from rag_evaluator.eval.generation import (
     score_correctness,
     score_faithfulness,
 )
-from rag_evaluator.eval.numeric import NUMERIC_RULES_VERSION, extract_values
+from rag_evaluator.eval.numeric import (
+    NUMERIC_RULES_VERSION,
+    answer_signature,
+    gold_dimension,
+)
 from rag_evaluator.eval.refusal import DEFAULT_REFUSAL_PHRASES, refusal_phrases_hash
 from rag_evaluator.eval.retrieval import (
     all_evidence_hit,
@@ -184,9 +188,10 @@ def _score_row(
                 item.evidence, sources, probe_sources, top_k
             )
 
-    base["answer_numeric_signature"] = ",".join(
-        sorted(str(v.canonical) for v in extract_values(answer))
+    sig_dimension = (
+        gold_dimension(item.gold_value.unit) if item.gold_value is not None else None
     )
+    base["answer_numeric_signature"] = answer_signature(answer, dimension=sig_dimension)
 
     corr = score_correctness(
         item, answer, judge, refusal_phrases=refusal_phrases, tolerance=tolerance

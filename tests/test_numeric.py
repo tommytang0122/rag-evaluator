@@ -2,8 +2,10 @@ from decimal import Decimal
 
 from rag_evaluator.eval.numeric import (
     DEFAULT_UNITS,
+    answer_signature,
     compare_numeric,
     extract_values,
+    gold_dimension,
 )
 
 D = Decimal
@@ -76,3 +78,29 @@ def test_tolerance():
 def test_comma_adjacent_numbers_not_merged():
     vals = extract_values("3,500,2,100")
     assert [v.value for v in vals] == [D("3500"), D("2100")]
+
+
+def test_answer_signature_scoped_to_dimension_excludes_incidental_page_number():
+    sig = answer_signature("營收 12,415 千元,詳見第 3 頁", dimension="money")
+    assert sig == "12415000"
+
+
+def test_answer_signature_scoped_to_dimension_matches_across_incidental_numbers():
+    sig = answer_signature("13,000 千元", dimension="money")
+    assert sig == "13000000"
+
+
+def test_answer_signature_no_numbers():
+    assert answer_signature("no numbers here") == ""
+
+
+def test_answer_signature_no_dimension_keeps_all_numbers():
+    sig = answer_signature("共 12,415 千元 與 3 頁")
+    parts = sig.split(",")
+    assert "12415000" in parts
+    assert "3" in parts
+
+
+def test_gold_dimension():
+    assert gold_dimension("千元") == "money"
+    assert gold_dimension(None) == "none"
