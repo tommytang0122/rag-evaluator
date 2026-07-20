@@ -66,6 +66,50 @@ def test_two_track_counts_system_error_as_zero():
     assert "| mean_correctness | 1.000 | 2.000 |" in md
 
 
+def test_system_error_refusal_row_excluded_from_retrieval_and_faithfulness_e2e():
+    # q-1 answerable, normal row: correctness=2, hit_at_1=True (via defaults)
+    # q-2 refusal, system_error row: not applicable to hit_at_1/faithfulness,
+    # but mean_correctness applies to every item type.
+    scores = [
+        _row("q-1"),
+        _row("q-2", system_error=True, retrieval=None,
+             correctness=None, method=None, faithfulness=None,
+             faithfulness_status=None),
+    ]
+    md = build_report(scores=scores, items=ITEMS)
+    # end-to-end hit_at_1 must ignore the errored refusal row entirely
+    assert "| hit_at_1 | 1.000 | 1.000 |" in md
+    # end-to-end faithfulness likewise excludes the errored refusal row
+    assert "| faithfulness | 1.000 | 1.000 |" in md
+    # mean_correctness still counts the errored refusal row as 0 -> (2+0)/2
+    assert "| mean_correctness | 1.000 | 2.000 |" in md
+
+
+def test_baseline_system_error_refusal_row_excluded_from_retrieval_diff():
+    # q-1 answerable: real diff on hit_at_5 (cur True vs base False -> +1.0)
+    # q-2 refusal, system_error on BOTH sides: must not contribute a
+    # phantom 0.0-vs-0.0 "no difference" diff for a metric that doesn't
+    # apply to refusal items, but mean_correctness still pairs 0 vs 0.
+    scores = [
+        _row("q-1"),
+        _row("q-2", system_error=True, retrieval=None,
+             correctness=None, method=None, faithfulness=None,
+             faithfulness_status=None),
+    ]
+    baseline = [
+        _row("q-1", correctness=1, faithfulness=0.5,
+             retrieval={"hit_at_1": True, "hit_at_3": True, "hit_at_5": False,
+                        "evidence_recall": 0.5, "all_evidence_hit": False,
+                        "mrr": 0.5, "citation_precision": 0.3}),
+        _row("q-2", system_error=True, retrieval=None,
+             correctness=None, method=None, faithfulness=None,
+             faithfulness_status=None),
+    ]
+    md = build_report(scores=scores, items=ITEMS, baseline=baseline)
+    assert "| hit_at_5 | 1.000 |" in md
+    assert "| mean_correctness | 0.500 |" in md
+
+
 def test_multi_run_metrics_present_when_runs_gt_1():
     scores = [
         _row("q-1", run=0),

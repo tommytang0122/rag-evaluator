@@ -42,12 +42,20 @@ _QUALITY_METRICS = {
 }
 
 
-def _metric_values(scores: list[dict], name: str, track: str) -> list[float]:
+def _metric_applies(name: str, item: DatasetItem | None) -> bool:
+    if name == "mean_correctness":
+        return True
+    return item is not None and item.answer_type == "answerable"
+
+
+def _metric_values(
+    scores: list[dict], name: str, track: str, by_id: dict[str, DatasetItem]
+) -> list[float]:
     extract, zero = _QUALITY_METRICS[name]
     vals: list[float] = []
     for r in scores:
         if r.get("system_error"):
-            if track == "end_to_end":
+            if track == "end_to_end" and _metric_applies(name, by_id.get(r["qid"])):
                 vals.append(zero)
             continue
         v = extract(r)
@@ -66,8 +74,8 @@ def _overview(scores: list[dict], items: list[DatasetItem]) -> list[str]:
         "|---|---|---|",
     ]
     for name in _QUALITY_METRICS:
-        e2e = _safe_mean(_metric_values(scores, name, "end_to_end"))
-        valid = _safe_mean(_metric_values(scores, name, "valid"))
+        e2e = _safe_mean(_metric_values(scores, name, "end_to_end", by_id))
+        valid = _safe_mean(_metric_values(scores, name, "valid", by_id))
         lines.append(f"| {name} | {_fmt(e2e)} | {_fmt(valid)} |")
 
     ok = [r for r in scores if not r.get("system_error")]
@@ -196,7 +204,13 @@ def _worst_cases(scores: list[dict], items: list[DatasetItem]) -> list[str]:
 _BASELINE_METRICS = ["mean_correctness", "evidence_recall", "faithfulness", "hit_at_5"]
 
 
-def _baseline(scores: list[dict], baseline: list[dict], iters: int, seed: int) -> list[str]:
+def _baseline(
+    scores: list[dict],
+    baseline: list[dict],
+    iters: int,
+    seed: int,
+    by_id: dict[str, DatasetItem],
+) -> list[str]:
     cur = {(r["qid"], r["run"]): r for r in scores}
     base = {(r["qid"], r["run"]): r for r in baseline}
     shared = sorted(set(cur) & set(base))
@@ -205,15 +219,16 @@ def _baseline(scores: list[dict], baseline: list[dict], iters: int, seed: int) -
     for name in _BASELINE_METRICS:
         extract, zero = _QUALITY_METRICS[name]
 
-        def val(r: dict) -> float | None:
+        def val(r: dict, qid: str) -> float | None:
             if r.get("system_error"):
-                return zero
+                return zero if _metric_applies(name, by_id.get(qid)) else None
             v = extract(r)
             return None if v is None else float(v)
 
         diffs = []
         for key in shared:
-            a, b = val(cur[key]), val(base[key])
+            qid, _run = key
+            a, b = val(cur[key], qid), val(base[key], qid)
             if a is not None and b is not None:
                 diffs.append(a - b)
         if not diffs:
@@ -249,5 +264,6 @@ def build_report(
     lines += _tags(scores, items)
     lines += _worst_cases(scores, items)
     if baseline is not None:
-        lines += _baseline(scores, baseline, bootstrap_iters, seed)
+        by_id = {i.id: i for i in items}
+        lines += _baseline(scores, baseline, bootstrap_iters, seed, by_id)
     return "\n".join(lines) + "\n"
