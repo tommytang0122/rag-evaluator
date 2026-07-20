@@ -57,3 +57,36 @@ def test_metrics_empty_inputs():
     assert citation_precision(EV, []) == 0.0
     assert evidence_recall([], SRC) == 0.0
     assert all_evidence_hit([], SRC) is False
+
+
+from rag_evaluator.eval.retrieval import (  # noqa: E402
+    LOST_TO_CUTOFF,
+    NOT_IN_PROBE,
+    RANKED_BELOW_TOP_K,
+    attribute_misses,
+)
+
+
+def test_attribute_misses():
+    evidence = [
+        EvidenceRef(document="hit.pdf", page=1),   # present in sources → not attributed
+        EvidenceRef(document="cut.pdf", page=2),   # probe rank 3 ≤ top_k 5 → cutoff
+        EvidenceRef(document="low.pdf", page=3),   # probe rank 7 > top_k 5 → ranked low
+        EvidenceRef(document="gone.pdf", page=4),  # absent from probe
+    ]
+    sources = [SourceRef(document="hit.pdf", page=1)]
+    probe = [
+        SourceRef(document="hit.pdf", page=1),
+        SourceRef(document="x.pdf", page=9),
+        SourceRef(document="cut.pdf", page=2),
+        SourceRef(document="y.pdf", page=9),
+        SourceRef(document="z.pdf", page=9),
+        SourceRef(document="w.pdf", page=9),
+        SourceRef(document="low.pdf", page=3),
+    ]
+    out = attribute_misses(evidence, sources, probe, top_k=5)
+    assert out == {
+        "cut#p2": LOST_TO_CUTOFF,
+        "low#p3": RANKED_BELOW_TOP_K,
+        "gone#p4": NOT_IN_PROBE,
+    }
