@@ -67,6 +67,57 @@ def test_generate_routes_text_and_vision(tmp_path):
     assert answerable[0]["evidence"] == "hr|a.pdf|1"
 
 
+def test_vision_row_has_image_path_and_excerpt(tmp_path):
+    judge = ScriptedGenJudge([
+        GeneratedQASet(items=[GeneratedQA(
+            question="圖表頁的營收?", gold_answer="12,415 千元", tags=["single-page"],
+        )]),
+        GeneratedQASet(items=[GeneratedQA(
+            question="聽起來相關但沒答案?", answer_type="refusal", tags=["unanswerable"],
+        )]),
+    ])
+    img = tmp_path / "page_2.png"
+    img.write_bytes(b"png")
+    corpus = Corpus([
+        CorpusPage(collection="hr", document="b.pdf", page=2,
+                   text="", text_source="none", image_path=str(img)),
+    ])
+    rows = generate_review_rows(corpus, judge, rng=random.Random(0))
+    answerable = [r for r in rows if r["answer_type"] == "answerable"]
+    assert len(answerable) == 1
+    assert answerable[0]["image_path"] == str(img)
+    assert answerable[0]["source_excerpt"] != ""
+    assert "圖片頁" in answerable[0]["source_excerpt"]
+
+
+def test_unanswerable_basis_nonempty_for_all_image_corpus(tmp_path):
+    img1 = tmp_path / "page_1.png"
+    img1.write_bytes(b"png")
+    img2 = tmp_path / "page_2.png"
+    img2.write_bytes(b"png")
+    corpus = Corpus([
+        CorpusPage(collection="hr", document="a.pdf", page=1,
+                   text="", text_source="none", image_path=str(img1)),
+        CorpusPage(collection="hr", document="b.pdf", page=2,
+                   text="", text_source="none", image_path=str(img2)),
+    ])
+    judge = ScriptedGenJudge([
+        GeneratedQASet(items=[GeneratedQA(
+            question="圖表頁 A 的營收?", gold_answer="12,415 千元", tags=["single-page"],
+        )]),
+        GeneratedQASet(items=[GeneratedQA(
+            question="圖表頁 B 的營收?", gold_answer="9,001 千元", tags=["single-page"],
+        )]),
+        GeneratedQASet(items=[GeneratedQA(
+            question="聽起來相關但沒答案?", answer_type="refusal", tags=["unanswerable"],
+        )]),
+    ])
+    rows = generate_review_rows(corpus, judge, rng=random.Random(0))
+    refusals = [r for r in rows if r["answer_type"] == "refusal"]
+    assert refusals
+    assert refusals[0]["generation_basis"] != ""
+
+
 def test_review_csv_roundtrip_and_finalize(tmp_path):
     rows = [
         {"question": "住宿補助上限?", "gold_answer": "每日 2,500 元",

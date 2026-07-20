@@ -49,7 +49,7 @@ GEN_UNANSWERABLE_PROMPT = (
 
 REVIEW_COLUMNS = [
     "question", "gold_answer", "gold_value", "answer_type", "tags",
-    "evidence", "source_excerpt", "generation_basis", "approved",
+    "evidence", "source_excerpt", "image_path", "generation_basis", "approved",
 ]
 
 
@@ -83,7 +83,9 @@ def _evidence_cell(page: CorpusPage) -> str:
     return f"{page.collection}|{page.document}|{page.page}"
 
 
-def _qa_to_row(qa: GeneratedQA, evidence: str, basis: str, excerpt: str) -> dict:
+def _qa_to_row(
+    qa: GeneratedQA, evidence: str, basis: str, excerpt: str, image_path: str
+) -> dict:
     return {
         "question": qa.question,
         "gold_answer": qa.gold_answer,
@@ -99,6 +101,7 @@ def _qa_to_row(qa: GeneratedQA, evidence: str, basis: str, excerpt: str) -> dict
         "tags": ",".join(qa.tags),
         "evidence": evidence,
         "source_excerpt": excerpt,
+        "image_path": image_path,
         "generation_basis": basis,
         "approved": "",  # nothing pre-approved; unanswerable 題必須人工勾選
     }
@@ -117,22 +120,30 @@ def generate_review_rows(
     pages = sample_pages(corpus, sample_pages_count, rng)
     rows: list[dict] = []
     snippet_pages: list[CorpusPage] = []
+    basis_pages: list[CorpusPage] = []
     for page in pages:
         if len(page.text) >= min_text_chars:
             result = judge.judge(
                 GEN_TEXT_PROMPT.format(page_text=page.text[:4000]), GeneratedQASet
             )
             snippet_pages.append(page)
+            basis_pages.append(page)
         elif page.image_path and Path(page.image_path).exists():
             result = judge.judge(
                 GEN_VISION_PROMPT, GeneratedQASet, images=[Path(page.image_path)]
             )
+            basis_pages.append(page)
         else:
             continue
+        excerpt = page.text[:200] if page.text else "(圖片頁,見 image_path 欄)"
         for qa in result.items:
             rows.append(
                 _qa_to_row(
-                    qa, _evidence_cell(page), _evidence_cell(page), page.text[:200]
+                    qa,
+                    _evidence_cell(page),
+                    _evidence_cell(page),
+                    excerpt,
+                    page.image_path or "",
                 )
             )
     count = max(1, round(unanswerable_ratio * len(rows))) if rows else 0
@@ -140,13 +151,13 @@ def generate_review_rows(
         snippets = "\n---\n".join(
             f"{_evidence_cell(p)}:{p.text[:300]}" for p in snippet_pages[:10]
         )
-        basis = ";".join(_evidence_cell(p) for p in snippet_pages[:10])
+        basis = ";".join(_evidence_cell(p) for p in basis_pages[:10])
         result = judge.judge(
             GEN_UNANSWERABLE_PROMPT.format(snippets=snippets, count=count),
             GeneratedQASet,
         )
         for qa in result.items:
-            rows.append(_qa_to_row(qa, "", basis, ""))
+            rows.append(_qa_to_row(qa, "", basis, "", ""))
     return rows
 
 
