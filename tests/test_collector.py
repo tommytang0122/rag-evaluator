@@ -110,3 +110,26 @@ def test_collect_probe_skipped_without_capability(tmp_path):
     )
     assert stats.probes == 0
     assert all(r["kind"] == "answer" for r in _lines(tmp_path))
+
+
+def test_collect_probe_failure_counts_as_error(tmp_path):
+    class FlakyProbe(FakeSystemWithProbe):
+        def ask_with_top_k(self, question, top_k):
+            raise ConnectionError("probe down")
+
+    stats = collect(
+        adapter=FlakyProbe(), items=[ITEM], run_dir=tmp_path, runs=1,
+        probe_top_k=20, retries=1,
+    )
+    assert stats.errors == 1 and stats.probes == 0
+    probes = [r for r in _lines(tmp_path) if r["kind"] == "probe"]
+    assert probes[0]["error"] == "system_error"
+
+
+def test_collect_probe_resume_counts_as_skipped(tmp_path):
+    collect(adapter=FakeSystemWithProbe(), items=[ITEM], run_dir=tmp_path,
+            runs=1, probe_top_k=20)
+    stats = collect(adapter=FakeSystemWithProbe(), items=[ITEM], run_dir=tmp_path,
+                    runs=1, probe_top_k=20)
+    assert stats.skipped == 2  # 1 answer row + 1 probe row
+    assert len([r for r in _lines(tmp_path) if r["kind"] == "probe"]) == 1

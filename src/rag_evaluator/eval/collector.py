@@ -84,15 +84,16 @@ def collect(
                     stats.errors += 1
                 else:
                     stats.completed += 1
-            if (
-                can_probe
-                and item.answer_type == "answerable"
-                and (item.id, 0, "probe") not in done
-            ):
-                answer, error = _try_ask(
-                    lambda: adapter.ask_with_top_k(item.question, probe_top_k), retries
-                )
-                write(_row(item.id, 0, "probe", answer, error))
-                if not error:
-                    stats.probes += 1
+            if can_probe and item.answer_type == "answerable":
+                if (item.id, 0, "probe") in done:
+                    stats.skipped += 1
+                else:
+                    answer, error = _try_ask(
+                        lambda: adapter.ask_with_top_k(item.question, probe_top_k), retries
+                    )
+                    write(_row(item.id, 0, "probe", answer, error))
+                    if error:
+                        stats.errors += 1
+                    else:
+                        stats.probes += 1
     return stats
