@@ -4,6 +4,7 @@ import argparse
 import importlib.metadata
 import os
 import sys
+import yaml
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,7 +12,7 @@ from dotenv import load_dotenv
 
 from rag_evaluator.adapters.nas_rag import build_adapter
 from rag_evaluator.config import load_system_config
-from rag_evaluator.dataset.corpus import convert_nas_rag_manifest, load_corpus, write_corpus
+from rag_evaluator.dataset.corpus import CorpusError, convert_nas_rag_manifest, load_corpus, write_corpus
 from rag_evaluator.dataset.generator import (
     finalize_dataset,
     generate_review_rows,
@@ -235,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.func(args)
-    except (RunManifestMismatch, JudgeError, FileNotFoundError, ValueError) as exc:
+    except (RunManifestMismatch, JudgeError, FileNotFoundError, ValueError, CorpusError, yaml.YAMLError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 

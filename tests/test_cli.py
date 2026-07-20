@@ -97,3 +97,35 @@ def test_collect_resume_mismatch_exits_2(tmp_path, monkeypatch):
                             ensure_ascii=False) + "\n", encoding="utf-8")
     assert cli.main(["collect", "--system", str(y), "--dataset", str(d),
                      "--run-id", "r1", "--runs-dir", runs_dir]) == 2
+
+
+def test_malformed_yaml_system_config_exits_2(tmp_path):
+    d = tmp_path / "dataset.jsonl"
+    d.write_text(json.dumps(DATASET_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+    bad_yaml = tmp_path / "sys.yaml"
+    bad_yaml.write_text("adapter: nas_rag\n  bad: : : indent", encoding="utf-8")
+    rc = cli.main(["collect", "--system", str(bad_yaml), "--dataset", str(d),
+                   "--run-id", "rbad", "--runs-dir", str(tmp_path / "runs")])
+    assert rc == 2
+
+
+def test_corpus_collision_exits_2(tmp_path, monkeypatch):
+    d = tmp_path / "dataset.jsonl"
+    d.write_text(json.dumps(DATASET_ROW, ensure_ascii=False) + "\n", encoding="utf-8")
+    y = tmp_path / "sys.yaml"
+    y.write_text(SYSTEM_YAML, encoding="utf-8")
+    monkeypatch.setattr(cli, "build_adapter", lambda cfg: _StubAdapter())
+    monkeypatch.setattr(cli, "_build_judge", lambda args: _StubJudge())
+    runs_dir = str(tmp_path / "runs")
+    cli.main(["collect", "--system", str(y), "--dataset", str(d),
+              "--run-id", "rc", "--runs-dir", runs_dir])
+    # corpus with a normalized-name collision (same collection+doc+page, different file_hash)
+    corpus = tmp_path / "corpus.jsonl"
+    corpus.write_text(
+        json.dumps({"collection": "hr", "document": "a.pdf", "page": 1, "file_hash": "h1"}, ensure_ascii=False) + "\n"
+        + json.dumps({"collection": "hr", "document": "A.PDF", "page": 1, "file_hash": "h2"}, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    rc = cli.main(["score", "--run-id", "rc", "--dataset", str(d),
+                   "--corpus", str(corpus), "--runs-dir", runs_dir])
+    assert rc == 2
