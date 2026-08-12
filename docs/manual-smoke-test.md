@@ -83,7 +83,7 @@ curl -s -X POST http://localhost:8020/v1/query -H 'Content-Type: application/jso
 
 ```yaml
 adapter: nas_rag        # 底線，不是 nas-rag（見 src/rag_evaluator/adapters/nas_rag.py 的 ADAPTERS）
-endpoint: http://localhost:8020
+endpoint: http://localhost:8020/v1/query   # 必須含完整路徑！adapter 直接 POST 這個 URL，不會自動補 /v1/query
 collection_names: [gavin_test]
 top_k: 5
 timeout_s: 120          # gemma4:31b 在本機可能很慢，放寬一點
@@ -161,14 +161,27 @@ uv run rag-eval report --dataset smoke.jsonl --run-id smoke-01
 
 ## 已知陷阱
 
-- **dataset 改了就要換 `--run-id`**：manifest 會釘住 dataset 的 SHA（`cli.py`），
-  改題目後對舊 run-id 執行 score/report 會報 `RunManifestMismatch`。這是設計行為。
+- **dataset 或 system.yaml 改了就要換 `--run-id`**：manifest 會釘住 dataset 的 SHA
+  與 system_config（`cli.py`），改動後對舊 run-id 執行會報 manifest mismatch。這是設計行為。
 - **adapter 名是 `nas_rag`**（底線）。
 - **忠實度的圖片升級在煙霧測試不會發生**：沒給 `--corpus` 時 judge 只有 sources 附帶的
-  文字可用，部分論斷會記 `evidence_unavailable`，屬預期。之後可用
-  `uv run rag-eval corpus from-nas-rag --manifest ~/workspace/project-nas-rag/output/verification_gavin_test.jsonl -o corpus.jsonl`
-  轉出 corpus，score 時加 `--corpus corpus.jsonl`（同一 run-id 第一次帶 corpus 會把
+  文字可用，部分論斷會記 `evidence_unavailable`，屬預期。建 corpus 首選
+  `uv run rag-eval corpus from-qdrant --collection gavin_test -o corpus.jsonl`
+  （直接 scroll Qdrant REST，payload 即最終欄位，無下述 manifest 陷阱），
+  score 時加 `--corpus corpus.jsonl`（同一 run-id 第一次帶 corpus 會把
   corpus SHA 也釘進 manifest）。
+  備援是 `corpus from-nas-rag --manifest .../output/verification_gavin_test.jsonl`，
+  但注意兩個 manifest 格式陷阱（2026-07-27 實測）：verification jsonl 每列
+  **沒有 `collection` 欄位**（轉換會 KeyError，需先逐列補上）；且該檔是 append
+  模式，重跑 pipeline 後會殘留舊列（同一 (source, page) 取最後一筆去重後再轉）。
+- **只拿得到前端網站也能評**：前端是純靜態 SPA，同源打 `/api/v1/query`，由 nginx
+  剝掉 `/api` 前綴反代到 backend（`deploy/nginx-nas-rag.conf`），request/response
+  契約與 `nas_rag` adapter 完全相同（含 top_k，截斷 probe 也可用）。把
+  `system.yaml` 的 `endpoint` 改成 `http://<web-host>/api/v1/query` 即可，
+  不需要新 adapter。
+- **本機 `nas-qdrant` container 沒掛 volume**：資料存在 container 可寫層，
+  Qdrant 啟動時會警告 storage 可能遺失（2026-08-12 實測 gavin_test 已消失）。
+  重灌後建議 `docker run -v` 掛實體目錄。
 - **gemma4 temperature=1.0**：同題重問答案會變。煙霧測試 `--runs 1` 即可；
   正式評測才需要 `--runs 3`。
 

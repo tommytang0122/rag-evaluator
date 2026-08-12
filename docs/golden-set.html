@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RAG 黃金問題集 v1</title>
+<style>
+  :root { --paper:#FAFAF7; --ink:#1C2430; --muted:#5C6672; --rule:#D9DCD4;
+          --seal:#B5352C; --well:#F1F2EC; --ok:#2E6B4F; }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper:#151A21; --ink:#E4E6E1; --muted:#98A0A8; --rule:#2B323C;
+            --seal:#E06A5E; --well:#1D242E; --ok:#6FBF97; } }
+  :root[data-theme="dark"] { --paper:#151A21; --ink:#E4E6E1; --muted:#98A0A8;
+    --rule:#2B323C; --seal:#E06A5E; --well:#1D242E; --ok:#6FBF97; }
+  :root[data-theme="light"] { --paper:#FAFAF7; --ink:#1C2430; --muted:#5C6672;
+    --rule:#D9DCD4; --seal:#B5352C; --well:#F1F2EC; --ok:#2E6B4F; }
+  body { background:var(--paper); color:var(--ink);
+    font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Helvetica Neue",sans-serif;
+    line-height:1.75; margin:0; padding:3.5rem 1.25rem 5rem; }
+  .sheet { max-width:44rem; margin:0 auto; }
+  h1, h2, .q { font-family:"Noto Serif TC","Songti TC","PMingLiU",serif; }
+  header { border-bottom:2px solid var(--ink); padding-bottom:1.5rem; }
+  .eyebrow { font-size:.78rem; letter-spacing:.35em; text-transform:uppercase;
+    color:var(--seal); font-weight:600; }
+  h1 { font-size:2rem; font-weight:700; margin:.4rem 0 .8rem; letter-spacing:.06em; text-wrap:balance; }
+  .meta { display:flex; flex-wrap:wrap; gap:.35rem 2rem; font-size:.82rem;
+    color:var(--muted); font-variant-numeric:tabular-nums; }
+  .meta b { color:var(--ink); font-weight:600; }
+  .note { margin:1.6rem 0 0; padding:.9rem 1.1rem; background:var(--well);
+    border-left:3px solid var(--seal); font-size:.88rem; color:var(--muted);
+    border-radius:0 4px 4px 0; }
+  .note b { color:var(--ink); }
+  h2 { font-size:1.12rem; letter-spacing:.1em; margin:3rem 0 .4rem;
+    display:flex; align-items:baseline; gap:.75rem; }
+  h2 small { font-size:.78rem; color:var(--muted); letter-spacing:.05em;
+    font-family:"Noto Sans TC",sans-serif; font-weight:400; }
+  .sec-rule { border:0; border-top:1px solid var(--rule); margin:0 0 .5rem; }
+  .item { padding:1.6rem 0 1.8rem; border-bottom:1px solid var(--rule); }
+  .item:last-child { border-bottom:0; }
+  .idrow { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .qid { font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:.74rem;
+    color:var(--muted); letter-spacing:.03em; }
+  .stamp { font-size:.7rem; font-weight:700; letter-spacing:.18em;
+    padding:.1rem .55rem .1rem .7rem; border-radius:3px; border:1.5px solid currentColor; }
+  .stamp.ans { color:var(--ok); }
+  .stamp.ref { color:var(--seal); }
+  .tag { font-size:.72rem; color:var(--muted); }
+  .tag::before { content:"#"; opacity:.6; }
+  .q { font-size:1.22rem; font-weight:700; margin:.55rem 0 .9rem; line-height:1.55; text-wrap:balance; }
+  dl { margin:0; display:grid; grid-template-columns:5.5em 1fr; gap:.45rem 1rem; font-size:.92rem; }
+  dt { color:var(--muted); font-size:.8rem; letter-spacing:.1em; padding-top:.12em; }
+  dd { margin:0; }
+  .gold { background:var(--well); padding:.55rem .8rem; border-radius:4px;
+    font-variant-numeric:tabular-nums; }
+  .gold .num { font-weight:700; font-size:1.05em; }
+  .gold.refusal { color:var(--muted); }
+  .gold.refusal em { color:var(--seal); font-style:normal; font-weight:600; }
+  .ev { font-size:.88rem; font-variant-numeric:tabular-nums; }
+  .ev .doc { font-weight:600; }
+  .ev .pg { color:var(--seal); font-weight:600; white-space:nowrap; }
+  .verify { font-size:.8rem; color:var(--muted); }
+  .score { display:flex; flex-wrap:wrap; gap:.3rem 1.4rem; font-size:.8rem;
+    color:var(--muted); font-variant-numeric:tabular-nums; }
+  .score b { color:var(--ok); font-weight:700; }
+  .pending { font-size:.78rem; color:var(--muted); border:1px dashed var(--rule);
+    border-radius:3px; padding:.05rem .5rem; }
+  footer { margin-top:3.5rem; padding-top:1rem; border-top:2px solid var(--ink);
+    font-size:.78rem; color:var(--muted); line-height:1.9; }
+  footer code { font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:.95em; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <div class="eyebrow">RAG Evaluator · gavin_test</div>
+    <h1>黃金問題集 v1</h1>
+    <div class="meta">
+      <span>共 <b>30</b> 題</span>
+      <span>可答 <b>26</b>／拒答 <b>4</b>／跨頁 <b>2</b></span>
+      <span>語料 <b>51</b> 頁 / 5 份 PDF</span>
+      <span>更新 <b>2026-07-27</b></span>
+    </div>
+    <p class="note">
+      每題 gold 均經<b>人工讀頁驗證</b>（逐頁開啟 PNG 核對數字與敘述後出題）。
+      本頁由 <b>docs/build_golden_set_html.py</b> 自 golden.jsonl 與評測 scores 生成。
+    </p>
+  </header>
+<h2>一、分廠損益彙總表（2023年09月）</h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">q-4bee55b5</span><span class="stamp ans">可 答</span><span class="tag">single-page</span></div><p class="q">「分廠損益彙總表」的報表時間是哪個月份？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">「分廠損益彙總表」的報表時間是2023年09月。</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 4 頁</span><br><span class="verify">驗證：頁首載明「2023年09月／製表日期 2023/10/01」</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR 0.33｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">smoke-001</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月塑膠一部嘉義三廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">5,419 NTD千元</span>　<span class="verify">gold_value：{number: 5419, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：塑膠一部／嘉義三廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-01</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月塑膠一部硬布一廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">23,421 NTD千元</span>　<span class="verify">gold_value：{number: 23421, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：塑膠一部／硬布一廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-02</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月塑膠三部小計的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">166,160 NTD千元</span>　<span class="verify">gold_value：{number: 166160, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：塑膠三部小計列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-03</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月塑膠三部嘉義一廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">149,179 NTD千元</span>　<span class="verify">gold_value：{number: 149179, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：塑膠三部／嘉義一廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith 0.67</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-04</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月塑膠一部樹林一廠的毛利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">-2,764 NTD千元（毛利為負）</span>　<span class="verify">gold_value：{number: -2764, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：塑膠一部／樹林一廠列 × 毛利金額欄（負值）</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-05</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月化工一部麥寮異辛醇廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">216,917 NTD千元</span>　<span class="verify">gold_value：{number: 216917, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 2 頁</span><br><span class="verify">驗證：化工一部／麥寮異辛醇廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-06</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月化工二部小計的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">-97,371 NTD千元（虧損）</span>　<span class="verify">gold_value：{number: -97371, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 2 頁</span><br><span class="verify">驗證：化工二部小計列 × 淨利金額欄（虧損）</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-07</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月麥寮丙二酚廠的停工損失及備品跌價損失是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">50,018 NTD千元</span>　<span class="verify">gold_value：{number: 50018, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 2 頁</span><br><span class="verify">驗證：化工二部／麥寮丙二酚廠列 × 停工損失及備品跌價損失欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-08</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月電子材料部銅箔二廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">10,516 NTD千元</span>　<span class="verify">gold_value：{number: 10516, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 3 頁</span><br><span class="verify">驗證：電子材料部／銅箔二廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-09</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月纖維部小計的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">-187,252 NTD千元（虧損）</span>　<span class="verify">gold_value：{number: -187252, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 3 頁</span><br><span class="verify">驗證：纖維部小計列 × 淨利金額欄（虧損）</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-10</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月聚酯膜部離型膜廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">5,060 NTD千元</span>　<span class="verify">gold_value：{number: 5060, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 3 頁</span><br><span class="verify">驗證：聚酯膜部／離型膜廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-11</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月工務部錦興公用廠的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">32,572 NTD千元</span>　<span class="verify">gold_value：{number: 32572, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 4 頁</span><br><span class="verify">驗證：工務部／錦興公用廠列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-12</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">2023年9月分廠損益彙總表中全公司合計的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">431,187 NTD千元</span>　<span class="verify">gold_value：{number: 431187, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 4 頁</span><br><span class="verify">驗證：全公司合計列 × 淨利金額欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR 0.33｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>二、南亞公告利益表（2023年1~9月）</h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">q-e2dda906</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞2023年1~9月（自結）的稅後利益是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">6,168,641 NTD千元</span>　<span class="verify">gold_value：{number: 6168641, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">2023年1-9月公開利益及權益收益(自結)V1002.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：稅後利益列 × 2023年1~9月（自結）欄。生成器原稿誤植 150 億元，審核時已更正</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">smoke-002</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞公告利益表中，2023年1~9月（自結）的營業額是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">91,007,923 NTD千元</span>　<span class="verify">gold_value：{number: 91007923, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">2023年1-9月公開利益及權益收益(自結)V1002.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：營業額列 × 2023年1~9月（自結）欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-13</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞2023年1~9月（自結）的稅前利益是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">5,680,113 NTD千元</span>　<span class="verify">gold_value：{number: 5680113, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">2023年1-9月公開利益及權益收益(自結)V1002.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：稅前利益列 × 2023年1~9月（自結）欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith 0</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-14</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞公告利益表中，南電2023年1~9月（自結）的權益收益是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">3,336,432 NTD千元</span>　<span class="verify">gold_value：{number: 3336432, unit: NTD千元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">2023年1-9月公開利益及權益收益(自結)V1002.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：權益收益／南電列 × 2023年1~9月（自結）欄</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>三、美國德州公司營運情況報告</h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">q-5ca89663</span><span class="stamp ans">可 答</span><span class="tag">single-page</span></div><p class="q">南亞美國德州公司EG2廠持續虧損的主要原因有哪些？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">南亞美國德州公司EG2廠因市況不佳、固定成本高及乙烯供料計價爭議導致持續虧損。</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">美國德州公司營運情況報告0928.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：每月固定成本 1,560 萬美元、累計虧損 3.70 億美元、台塑美國調價提案爭議均見於本頁</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith 0</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-15</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞美國德州公司EG2廠截至2023年8月的累計虧損是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">3.70 億美元</span>　<span class="verify">gold_value：{number: 3.7, unit: 億美元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">美國德州公司營運情況報告0928.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：第二點：截至2023年8月累計虧損3.70億美元</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-16</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">南亞美國德州公司EG2廠每月固定成本約多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">1,560 萬美元（其中折舊約637萬美元、利息約636萬美元）</span>　<span class="verify">gold_value：{number: 1560, unit: 萬美元}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">美國德州公司營運情況報告0928.pdf</span> <span class="pg">第 1 頁</span><br><span class="verify">驗證：第二點：每月固定成本達1,560萬美元（折舊約637萬、利息約636萬）</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith 0.33</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>四、台積電數位轉型（文章）</h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">man-17</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">single-page</span></div><p class="q">台積電在哪一年提出「虛擬晶圓廠」概念？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">1996年</span>　<span class="verify">gold_value：{number: 1996, unit: 年}</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202101_台積電數位轉型的下一步，靠AI推動全面轉型（上）.pdf</span> <span class="pg">第 2 頁</span><br><span class="verify">驗證：內文：早在1996年就提出「虛擬晶圓廠」概念</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（rule_numeric）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-18</span><span class="stamp ans">可 答</span><span class="tag">single-page</span></div><p class="q">台積電在2000年推出的產業生態系合作模式名稱為何？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">設計服務聯盟（Design Service Alliance）</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202101_台積電數位轉型的下一步，靠AI推動全面轉型（上）.pdf</span> <span class="pg">第 2 頁</span><br><span class="verify">驗證：內文：2000年推出設計服務聯盟（Design Service Alliance）</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>五、膠皮二廠PVC膠皮機簡報</h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">man-19</span><span class="stamp ans">可 答</span><span class="tag">single-page</span><span class="tag">equipment</span></div><p class="q">AT05膠皮主機配置圖（A-A斷面圖）中標示了哪些主要設備？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">TCU、Winder、Cooling Drum、Total Thickness Gauge、Calender、Strainer Extruder、Open Mill、Planetary Extruder</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">膠皮二廠PVC膠皮機自動控制系統及架構介紹.pdf</span> <span class="pg">第 3 頁</span><br><span class="verify">驗證：配置圖綠色標籤共 8 項設備</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>六、跨頁／跨文件題 <small>檢索需同時命中多頁</small></h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">man-20</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">cross-page</span></div><p class="q">2023年9月塑膠一部小計與工務部小計的淨利金額各是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">塑膠一部小計 8,084 NTD千元；工務部小計 75,626 NTD千元</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 1、4 頁</span><br><span class="verify">驗證：第1頁塑膠一部小計 8,084；第4頁工務部小計 75,626</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith 0.5</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-21</span><span class="stamp ans">可 答</span><span class="tag">numeric</span><span class="tag">cross-page</span><span class="tag">cross-doc</span></div><p class="q">南亞2023年1~9月（自結）的營業額，與2023年9月分廠損益彙總表全公司合計的收入合計，分別是多少？</p><dl><dt>標準答案</dt><dd class="gold"><span class="num">營業額 91,007,923 NTD千元（1~9月自結）；9月全公司收入合計 13,032,770 NTD千元</span></dd><dt>證據頁</dt><dd class="ev"><span class="doc">2023年1-9月公開利益及權益收益(自結)V1002.pdf</span> <span class="pg">第 1 頁</span>；<span class="doc">202309-分廠損益彙總表.pdf</span> <span class="pg">第 4 頁</span><br><span class="verify">驗證：公開利益表營業額（自結）91,007,923；損益表第4頁收入合計 13,032,770</span></dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）｜recall <b>1</b>｜MRR <b>1</b>｜faith <b>1</b></span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<h2>七、拒答題 <small>語料中不存在，正確行為是拒答</small></h2><hr class="sec-rule">
+<article class="item"><div class="idrow"><span class="qid">q-4ffe8281</span><span class="stamp ref">拒 答</span><span class="tag">unanswerable</span></div><p class="q">台積電在導入AI技術以優化良率後，其各製程節點的具體良率提升百分比為何？</p><dl><dt>標準答案</dt><dd class="gold refusal">語料中不存在此資訊——正確行為是<em>拒答</em>。</dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（refusal_rule）</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">smoke-003</span><span class="stamp ref">拒 答</span><span class="tag">unanswerable</span></div><p class="q">2030年火星廠區的營業收入是多少？</p><dl><dt>標準答案</dt><dd class="gold refusal">刻意虛構的年份與廠區——正確行為是<em>拒答</em>。</dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（refusal_rule）</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-22</span><span class="stamp ref">拒 答</span><span class="tag">unanswerable</span></div><p class="q">2023年10月分廠損益彙總表中全公司合計的淨利金額是多少？</p><dl><dt>標準答案</dt><dd class="gold refusal">語料僅有 2023年9月 的分廠損益彙總表——正確行為是<em>拒答</em>。</dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（judge）</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<article class="item"><div class="idrow"><span class="qid">man-23</span><span class="stamp ref">拒 答</span><span class="tag">unanswerable</span></div><p class="q">南亞美國德州公司EG1廠2023年9月的營業額是多少？</p><dl><dt>標準答案</dt><dd class="gold refusal">德州報告僅載 EG1 供應價（639 美元/噸），無 EG1 營業額——正確行為是<em>拒答</em>。</dd><dt>評測結果</dt><dd class="score"><span>correctness <b>2</b>（refusal_rule）</span><span class="verify">（run: golden-02(v2)）</span></dd></dl></article>
+<footer>
+    檔案：<code>golden.jsonl</code>（30 題題庫）、<code>smoke.jsonl</code>（煙霧子集）、<code>review.csv</code>（生成器審核底稿）<br>
+    受測系統：nas-rag（Qdrant gavin_test · Gemini 2048 維檢索 · Sonnet 5 作答）· judge：gemini-2.5-flash (prompt v2)<br>
+    30／30 題達標；評測新題請換新的 run-id（dataset SHA 已變更）。
+  </footer>
+</div>
+</body>
+</html>
