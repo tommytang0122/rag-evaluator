@@ -16,7 +16,7 @@ def test_extract_thousands_fullwidth_and_units():
     assert [(v.value, v.dimension) for v in vals] == [
         (D("12415"), "money"),
         (D("3.5"), "percent"),
-        (D("2025"), "none"),
+        (D("2025"), "year"),
     ]
     assert vals[0].canonical == D("12415000")  # 千元 → 元
 
@@ -104,3 +104,19 @@ def test_answer_signature_no_dimension_keeps_all_numbers():
 def test_gold_dimension():
     assert gold_dimension("千元") == "money"
     assert gold_dimension(None) == "none"
+
+
+def test_usd_and_year_units_match():
+    from decimal import Decimal as D
+    from rag_evaluator.eval.numeric import compare_numeric
+    assert compare_numeric("累計虧損3.70億美元", D("3.7"), "億美元").status == "match"
+    assert compare_numeric("約1,560萬美元", D("1560"), "萬美元").status == "match"
+    assert compare_numeric("1996年提出", D("1996"), "年").status == "match"
+    # 台幣與美元不同維度:數字相同也不可 match
+    assert compare_numeric("12,415 千元", D("12415"), "千美元").status != "match"
+
+
+def test_unknown_gold_unit_returns_unknown_unit():
+    from decimal import Decimal as D
+    from rag_evaluator.eval.numeric import compare_numeric
+    assert compare_numeric("3.70 光年", D("3.7"), "光年").status == "unknown_unit"

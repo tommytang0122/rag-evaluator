@@ -86,13 +86,40 @@ def test_refusal_item_pure_refusal_correct():
     assert r.correctness == 2 and not r.hallucinated_answer
 
 
-def test_refusal_item_mixed_is_hallucinated():
+def test_refusal_item_mixed_fabrication_judged_hallucinated():
+    judge = FakeJudge(CorrectnessVerdict(score=0, reason="給出了編造數字"))
     item = _item(
         answer_type="refusal", gold_answer="", gold_value=None, evidence=[],
         tags=["unanswerable"],
     )
-    r = score_correctness(item, "找不到原始資料,但依推測是 12,415 千元", FakeJudge())
+    r = score_correctness(item, "找不到原始資料,但依推測是 12,415 千元", judge)
+    assert r.method == "judge"
     assert r.correctness == 0 and r.hallucinated_answer is True
+    assert "拒答" in judge.calls[0]["prompt"]
+
+
+def test_refusal_item_explained_refusal_judged_correct():
+    judge = FakeJudge(CorrectnessVerdict(score=2, reason="實質拒答並說明語料範圍"))
+    item = _item(
+        answer_type="refusal", gold_answer="", gold_value=None, evidence=[],
+        tags=["unanswerable"],
+    )
+    r = score_correctness(
+        item, "找不到相關資訊。所提供報表為 2023年09月資料,並非詢問的月份。", judge
+    )
+    assert r.method == "judge"
+    assert r.correctness == 2 and r.hallucinated_answer is False
+
+
+def test_unknown_gold_unit_degrades_to_judge():
+    judge = FakeJudge(CorrectnessVerdict(score=2, reason="一致"))
+    item = _item(
+        gold_answer="3.70 億美元",
+        gold_value={"number": "3.7", "unit": "光年"},  # 字典外單位
+    )
+    r = score_correctness(item, "累計虧損 3.70 光年", judge)
+    assert r.method == "judge" and r.correctness == 2
+    assert r.numeric_status == "unknown_unit" and r.unit_mismatch is False
 
 
 def test_narrative_goes_to_judge_without_context():

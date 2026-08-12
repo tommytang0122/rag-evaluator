@@ -19,7 +19,7 @@ from rag_evaluator.eval.refusal import (
 )
 from rag_evaluator.judge import JudgeError
 
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 
 TRAP_TAGS = frozenset({"company-match", "multi-page"})
 
@@ -37,6 +37,18 @@ CORRECTNESS_PROMPT = (
     + _INJECTION_GUARD
     + "\n問題:{question}\n黃金答案:{gold_answer}\n"
     "<untrusted>系統答案:{answer}</untrusted>\n"
+    '回覆 JSON:{{"score": <0|1|2>, "reason": "<一句話理由>"}}'
+)
+
+REFUSAL_MIXED_PROMPT = (
+    "此題在語料中沒有答案,系統的正確行為是拒答。系統的回答同時包含拒答語句與"
+    "其他文字。請判斷:\n"
+    "2=實質拒答(其他文字只是解釋為何無法回答,或說明語料實際涵蓋的範圍,"
+    "沒有假裝回答問題);\n"
+    "1=模稜兩可(未明確拒答,也未給出具體答案);\n"
+    "0=編造了答案(其他文字實際上回答了問題,給出語料中不存在的內容)。\n"
+    + _INJECTION_GUARD
+    + "\n問題:{question}\n<untrusted>系統答案:{answer}</untrusted>\n"
     '回覆 JSON:{{"score": <0|1|2>, "reason": "<一句話理由>"}}'
 )
 
@@ -69,7 +81,8 @@ IMAGE_VERIFY_PROMPT = (
 
 def prompt_hash() -> str:
     joined = "\n---\n".join(
-        [CORRECTNESS_PROMPT, CLAIM_EXTRACTION_PROMPT, TEXT_VERIFY_PROMPT, IMAGE_VERIFY_PROMPT]
+        [CORRECTNESS_PROMPT, REFUSAL_MIXED_PROMPT, CLAIM_EXTRACTION_PROMPT,
+         TEXT_VERIFY_PROMPT, IMAGE_VERIFY_PROMPT]
     )
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()
 
@@ -110,8 +123,21 @@ def score_correctness(
     if item.answer_type == "refusal":
         if state == PURE_REFUSAL:
             return CorrectnessResult(2, "refusal_rule", state)
-        if state in (SUBSTANTIVE, MIXED):
+        if state == SUBSTANTIVE:
             return CorrectnessResult(0, "refusal_rule", state, hallucinated_answer=True)
+        if state == MIXED:
+            # 拒答語句+解釋:規則層分不出「解釋為何拒答」與「邊拒答邊給編造
+            # 答案」,升級給 judge 判斷。
+            prompt = REFUSAL_MIXED_PROMPT.format(question=item.question, answer=answer)
+            try:
+                verdict = judge.judge(prompt, CorrectnessVerdict)
+            except JudgeError:
+                return CorrectnessResult(None, "judge", state, judge_error=True)
+            return CorrectnessResult(
+                verdict.score, "judge", state,
+                hallucinated_answer=verdict.score == 0,
+                judge_reason=verdict.reason,
+            )
         return CorrectnessResult(0, "refusal_rule", state)  # empty_non_answer
 
     if state == PURE_REFUSAL:
@@ -137,7 +163,7 @@ def score_correctness(
             return CorrectnessResult(
                 0, "rule_numeric", state, numeric_status="number_mismatch"
             )
-        # no_number / ambiguous → degrade to judge
+        # no_number / ambiguous / unknown_unit → degrade to judge
 
     prompt = CORRECTNESS_PROMPT.format(
         question=item.question, gold_answer=item.gold_answer, answer=answer

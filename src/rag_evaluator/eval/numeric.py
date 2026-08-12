@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Mapping
 
-NUMERIC_RULES_VERSION = "v1"
+NUMERIC_RULES_VERSION = "v2"
 
 # casefolded unit key → (dimension, multiplier to canonical base unit)
 DEFAULT_UNITS: dict[str, tuple[str, Decimal]] = {
@@ -17,6 +17,12 @@ DEFAULT_UNITS: dict[str, tuple[str, Decimal]] = {
     "萬元": ("money", Decimal(10000)),
     "百萬元": ("money", Decimal(1_000_000)),
     "億元": ("money", Decimal(100_000_000)),
+    "美元": ("usd", Decimal(1)),
+    "千美元": ("usd", Decimal(1000)),
+    "萬美元": ("usd", Decimal(10000)),
+    "百萬美元": ("usd", Decimal(1_000_000)),
+    "億美元": ("usd", Decimal(100_000_000)),
+    "年": ("year", Decimal(1)),
     "%": ("percent", Decimal(1)),
     "％": ("percent", Decimal(1)),
 }
@@ -76,7 +82,7 @@ def answer_signature(
 
 @dataclass(frozen=True)
 class NumericResult:
-    status: str  # match | unit_mismatch | number_mismatch | no_number | ambiguous
+    status: str  # match | unit_mismatch | number_mismatch | no_number | ambiguous | unknown_unit
     canonical: str | None = None
 
 
@@ -103,6 +109,10 @@ def compare_numeric(
     if not values:
         return NumericResult("no_number")
     gdim, gmult = _resolve_gold_unit(gold_unit, units)
+    if gdim.startswith("other:"):
+        # gold 用了字典外的單位:規則層無法建立可比較的維度,
+        # 回報 inconclusive 讓上層升級給 judge,而不是硬判 unit_mismatch。
+        return NumericResult("unknown_unit")
     gold_canonical = gold_number * gmult
     same_dim = [v for v in values if v.dimension == gdim]
     matches = [v for v in same_dim if abs(v.canonical - gold_canonical) <= tolerance]
