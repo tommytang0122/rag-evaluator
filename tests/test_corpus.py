@@ -1,5 +1,6 @@
 import json
 
+import httpx
 import pytest
 
 from rag_evaluator.dataset.models import CorpusPage
@@ -7,6 +8,7 @@ from rag_evaluator.dataset.corpus import (
     Corpus,
     CorpusError,
     convert_nas_rag_manifest,
+    fetch_qdrant_pages,
     load_corpus,
     write_corpus,
 )
@@ -56,6 +58,124 @@ def test_convert_nas_rag_manifest(tmp_path):
     assert [p.type for p in pages] == ["table_figure", "table_figure", "table_text"]
     assert pages[0].file_hash == "h-aaa"
     assert pages[2].text.startswith("第一條")
+
+
+# --- corpus from-qdrant:REST scroll → CorpusPage ---
+
+QDRANT_PAYLOAD_FIGURE = {
+    "source": "C:\\nas\\營收月報.pdf",
+    "page": 3,
+    "type": "table_figure",
+    "file_hash": "h-aaa",
+    "image_path": "output/images/gavin_test/營收月報/page_3.png",
+    "schema_text": "【報表標題】營收月報",
+}
+
+QDRANT_PAYLOAD_TEXT = {
+    "source": "C:\\nas\\辦法.pdf",
+    "page": 1,
+    "type": "table_text",
+    "file_hash": "h-bbb",
+    "schema_text": "摘要",
+    "content": "第一條 本辦法依...",
+}
+
+
+def _scroll_response(points, next_page_offset=None):
+    return {"result": {"points": points, "next_page_offset": next_page_offset},
+            "status": "ok"}
+
+
+def _qdrant_client(handler):
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_fetch_qdrant_pages_maps_payload():
+    requests = []
+
+    def handler(request):
+        requests.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json=_scroll_response([
+            {"id": "p1", "payload": QDRANT_PAYLOAD_FIGURE},
+            {"id": "p2", "payload": QDRANT_PAYLOAD_TEXT},
+        ]))
+
+    pages = fetch_qdrant_pages(
+        "http://localhost:6333", ["gavin_test"], client=_qdrant_client(handler)
+    )
+    path, body = requests[0]
+    assert path == "/collections/gavin_test/points/scroll"
+    assert body["with_payload"] is True and body["with_vectors"] is False
+    assert "offset" not in body
+
+    fig, txt = pages
+    assert fig.collection == "gavin_test" and fig.document.endswith("營收月報.pdf")
+    assert fig.page == 3 and fig.type == "table_figure"
+    assert fig.text == "【報表標題】營收月報" and fig.text_source == "schema_text"
+    assert fig.file_hash == "h-aaa" and fig.image_path.endswith("page_3.png")
+    assert txt.text.startswith("第一條") and txt.text_source == "content"
+    assert txt.image_path is None
+
+
+def test_fetch_qdrant_pages_paginates_until_offset_exhausted():
+    requests = []
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        if len(requests) == 1:
+            return httpx.Response(200, json=_scroll_response(
+                [{"id": "p1", "payload": QDRANT_PAYLOAD_FIGURE}], next_page_offset="p2"
+            ))
+        return httpx.Response(200, json=_scroll_response(
+            [{"id": "p2", "payload": QDRANT_PAYLOAD_TEXT}]
+        ))
+
+    pages = fetch_qdrant_pages(
+        "http://localhost:6333", ["gavin_test"], client=_qdrant_client(handler)
+    )
+    assert len(pages) == 2
+    assert requests[1]["offset"] == "p2"
+
+
+def test_fetch_qdrant_pages_iterates_collections():
+    seen_paths = []
+
+    def handler(request):
+        seen_paths.append(request.url.path)
+        return httpx.Response(200, json=_scroll_response(
+            [{"id": "p1", "payload": QDRANT_PAYLOAD_TEXT}]
+        ))
+
+    pages = fetch_qdrant_pages(
+        "http://localhost:6333", ["hr", "fin"], client=_qdrant_client(handler)
+    )
+    assert seen_paths == [
+        "/collections/hr/points/scroll",
+        "/collections/fin/points/scroll",
+    ]
+    assert [p.collection for p in pages] == ["hr", "fin"]
+
+
+def test_fetch_qdrant_pages_http_error_raises_corpus_error():
+    def handler(request):
+        return httpx.Response(404, json={"status": {"error": "not found"}})
+
+    with pytest.raises(CorpusError, match="gavin_test"):
+        fetch_qdrant_pages(
+            "http://localhost:6333", ["gavin_test"], client=_qdrant_client(handler)
+        )
+
+
+def test_fetch_qdrant_pages_missing_required_field_raises():
+    def handler(request):
+        return httpx.Response(200, json=_scroll_response(
+            [{"id": "p9", "payload": {"source": "a.pdf"}}]  # page 缺漏
+        ))
+
+    with pytest.raises(CorpusError, match="p9"):
+        fetch_qdrant_pages(
+            "http://localhost:6333", ["gavin_test"], client=_qdrant_client(handler)
+        )
 
 
 def test_corpus_lookup_normalizes_document():
