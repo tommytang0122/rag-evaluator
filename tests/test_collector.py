@@ -89,7 +89,7 @@ def test_collect_system_error_recorded(tmp_path):
     stats = collect(adapter=sys_, items=[ITEM], run_dir=tmp_path, runs=1, retries=2)
     assert stats.errors == 1
     row = _lines(tmp_path)[0]
-    assert row["error"] == "system_error" and row["answer"] is None
+    assert row["error"].startswith("system_error: ") and row["answer"] is None
 
 
 def test_collect_probe_once_for_answerable_only(tmp_path):
@@ -123,7 +123,7 @@ def test_collect_probe_failure_counts_as_error(tmp_path):
     )
     assert stats.errors == 1 and stats.probes == 0
     probes = [r for r in _lines(tmp_path) if r["kind"] == "probe"]
-    assert probes[0]["error"] == "system_error"
+    assert probes[0]["error"].startswith("system_error: ")
 
 
 def test_collect_probe_resume_counts_as_skipped(tmp_path):

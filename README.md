@@ -13,16 +13,58 @@ RAG 回答品質評分 CLI:檢索指標(規則)+ 答案正確性(規則優先、
 └──────────┘   └──────────────┘   └───────────────┘   └──────────┘
 ```
 
-## 安裝與設定
+## 一鍵開跑
 
 ```bash
 uv sync                      # 或 uv pip install -e ".[dev]"
-cp .env.example .env         # 填 GEMINI_API_KEY;其餘預設值可直接用
+cp .env.example .env         # 填下表的值
+./run-eval.sh                # run-id 省略時用 prod-<日期時間>
 ```
 
-`.env.example` 同時是「換一個受測 RAG 系統」的 checklist:五個區段依序是 judge 金鑰、Qdrant URL、system.yaml 要填什麼、黃金集怎麼建、換系統要檢查的內建假設。
+`run-eval.sh` 依序做:讀 `.env` → 生成 `runs/<run-id>/system.yaml` → **preflight**(打一發真的 query,驗回傳符合 adapter 契約)→ 備妥 corpus → collect → score → report。preflight 是為了讓 endpoint 打錯、token 過期、憑證不對這類問題在**跑整份題庫之前**就明確報出來,而不是收完一堆 `system_error` 才回頭查。
 
-受測系統的連線設定寫在 `system.yaml`(不放 .env,因為 run manifest 會釘住它做溯源):
+```bash
+./run-eval.sh prod-01 --runs 3 --dataset golden.jsonl --baseline prod-00
+```
+
+| 選項 | 預設 | 說明 |
+|---|---|---|
+| `[run-id]` | `prod-<YYYYMMDD-HHMM>` | 改了 `.env` 或黃金集就要換一個 |
+| `--runs N` | 3 | 同題重問次數;煙霧測試用 1 |
+| `--dataset f` | `golden.jsonl` | 黃金集 |
+| `--corpus f` | `corpus.jsonl` | 不存在時會試著從 Qdrant 建 |
+| `--baseline id` | 無 | 與基準 run-id 做迴歸比較 |
+| `--skip-preflight` | 關 | 跳過契約檢查 |
+| `ENV_FILE=path` | `.env` | 換一份環境設定檔 |
+
+### 人類要提供什麼
+
+`.env` 裡只有這幾個是**必填**,其餘留預設即可(完整說明見 `.env.example`):
+
+| 變數 | 說明 |
+|---|---|
+| `GEMINI_API_KEY` | judge 用。judge 要與受測系統的回答模型不同家,避免同源偏袒 |
+| `RAG_EVAL_ENDPOINT` | **必須含完整路徑**,如 `http://host/api/v1/query`——adapter 直接 POST 這個 URL,不會自動補 `/v1/query` |
+| `RAG_EVAL_COLLECTION` | 逗號分隔可多個 |
+
+視環境選填:
+
+| 變數 | 預設 | 何時要設 |
+|---|---|---|
+| `RAG_EVAL_AUTH_TOKEN` | 空(不送) | 端點需要認證。值原樣放進 header,**不會自動補 `Bearer `**,所以 `Bearer xxx` 與純 API key 都能表達 |
+| `RAG_EVAL_AUTH_HEADER` | `Authorization` | 改成 `X-API-Key` 之類 |
+| `RAG_EVAL_TLS_VERIFY` | `true` | 內網自簽憑證填 `false`,或填 CA bundle 路徑 |
+| `RAG_EVAL_TOP_K` / `RAG_EVAL_TIMEOUT_S` | 5 / 300 | 受測系統慢就放寬 timeout |
+| `RAG_EVAL_CUTOFF_PROBE_TOP_K` | 20 | 以更大的 top_k 再打一次,歸因「檢索沒中是被截斷還是排名太低」 |
+| `RAG_EVAL_QDRANT_URL` | `http://localhost:6333` | 沒有 `corpus.jsonl` 時,script 從這裡建 |
+
+**token 不會落盤**:`system.yaml` 與 run manifest 只記 `auth_env: RAG_EVAL_AUTH_TOKEN` 這個**變數名稱**,值僅在建 HTTP client 時從環境解析。manifest 會把整份 system_config 原樣寫進評測紀錄,所以秘密絕不能以明文進設定檔。
+
+需要逐步 debug 或換受測系統時,走下面的分步流程。
+
+## 分步流程
+
+受測系統的連線設定寫在 `system.yaml`(`run-eval.sh` 生成的那份在 `runs/<run-id>/system.yaml`,repo 根目錄這份留給手動流程):
 
 ```yaml
 adapter: nas_rag                            # 註冊於 src/rag_evaluator/adapters/
@@ -30,11 +72,14 @@ endpoint: http://localhost:8020/v1/query    # 必須含完整路徑
 collection_names: [gavin_test]
 top_k: 5
 timeout_s: 120
+auth_env: RAG_EVAL_AUTH_TOKEN               # 可省略;存變數名而非 token 本身
+auth_header: Authorization
+verify: true                                # false=略過驗證,或填 CA bundle 路徑
 ```
 
 只拿得到前端網站時,`endpoint` 改成 `http://<web-host>/api/v1/query` 即可(nginx 會剝 `/api` 前綴反代給 backend,契約相同)。
 
-## 評測流程
+`.env.example` 同時是「換一個受測 RAG 系統」的 checklist:五個區段依序是 judge 金鑰、Qdrant URL、受測系統連線、黃金集怎麼建、換系統要檢查的內建假設。
 
 ### 1. 建 corpus(忠實度證據來源;可略過)
 
@@ -68,6 +113,7 @@ uv run rag-eval collect --system system.yaml --dataset golden.jsonl \
 - `--runs 3`:同題重問 n 次(受測系統 temperature 高時必要,報 pass@1/pass@3/一致率);煙霧測試用 1。
 - 可中斷續跑:重跑同一 run-id 會跳過已完成的題。
 - 若 system.yaml 的 `diagnostics.cutoff_probe_top_k` 有設,另以大 top_k 打一次做截斷歸因。
+- 連線失敗會重試 2 次後記為 `system_error: HTTP 401 {...}`,錯誤細節寫進 `raw.jsonl` 的 `error` 欄,不必回頭手動 curl 猜原因。
 
 ### 4. score:離線評分
 
@@ -100,6 +146,7 @@ uv run rag-eval run --system system.yaml --dataset golden.jsonl \
 
 | 檔案 | 內容 |
 |---|---|
+| `system.yaml` | 由 `.env` 生成的受測系統設定(僅 `run-eval.sh` 產出) |
 | `raw.jsonl` | 每題每次的 Q/A/sources/latency 原始記錄 |
 | `scores.jsonl` | 逐題評分(含 judge 理由、prompt 版本) |
 | `report.md` | 彙總報表 |
