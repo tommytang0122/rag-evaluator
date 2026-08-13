@@ -1,5 +1,0 @@
-adapter: nas_rag
-endpoint: http://localhost:8020/v1/query
-collection_names: [gavin_test]
-top_k: 5
-timeout_s: 120

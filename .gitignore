@@ -219,3 +219,9 @@ __marimo__/
 
 runs/
 local/
+
+# 機器專屬的評測設定與煙霧題庫。兩者都內含該台機器的絕對路徑
+# (evidence[].document / endpoint),入版控會讓不同機器互相覆蓋。
+# 範本見 README「分步流程」的 system.yaml 區塊與 docs/manual-smoke-test.md。
+system.yaml
+smoke.jsonl

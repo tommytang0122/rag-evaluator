@@ -1,3 +1,0 @@
-{"id":"smoke-001","question":"2023年9月嘉義三廠的收入合計是多少？","answer_type":"answerable","gold_answer":"100,707 NTD千元","gold_value":{"number":100707,"unit":"NTD千元"},"evidence":[{"document":"/home/n000197588/workspace/project-nas-rag/raw/gavin_test/202309-分廠損益彙總表.pdf","page":1,"collection":"gavin_test"}],"tags":["numeric","single-page"]}
-{"id":"smoke-002","question":"2023年9月全公司的淨利是多少？","answer_type":"answerable","gold_answer":"431,187 NTD千元","gold_value":{"number":431187,"unit":"NTD千元"},"evidence":[{"document":"/home/n000197588/workspace/project-nas-rag/raw/gavin_test/202309-分廠損益彙總表.pdf","page":4,"collection":"gavin_test"}],"tags":["numeric","single-page"]}
-{"id":"smoke-003","question":"2030年火星廠區的營業收入是多少？","answer_type":"refusal","gold_answer":"","tags":["unanswerable"]}
