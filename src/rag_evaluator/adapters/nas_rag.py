@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 
 import httpx
@@ -8,10 +9,30 @@ from rag_evaluator.adapters.base import RAGAnswer, RAGSystem, SourceRef
 from rag_evaluator.config import SystemConfig
 
 
+def auth_headers(config: SystemConfig) -> dict[str, str]:
+    """從 config.auth_env 指名的環境變數取 token,原樣放進 header。
+
+    不自動補 `Bearer ` 前綴,所以 `Authorization: Bearer x` 與 `X-API-Key: x`
+    用同一組欄位就都能表達。
+    """
+    if not config.auth_env:
+        return {}
+    token = os.environ.get(config.auth_env)
+    if not token:
+        raise ValueError(
+            f"system.yaml 的 auth_env 指向 {config.auth_env},但該環境變數未設定或為空"
+        )
+    return {config.auth_header: token}
+
+
 class NasRagAdapter:
     def __init__(self, config: SystemConfig, client: httpx.Client | None = None):
         self._config = config
-        self._client = client or httpx.Client(timeout=config.timeout_s)
+        self._client = client or httpx.Client(
+            timeout=config.timeout_s,
+            headers=auth_headers(config),
+            verify=config.verify,
+        )
 
     def ask(self, question: str) -> RAGAnswer:
         return self.ask_with_top_k(question, self._config.top_k)

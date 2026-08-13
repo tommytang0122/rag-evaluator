@@ -34,6 +34,43 @@ def test_corpus_from_nas_rag(tmp_path):
     assert row["text_source"] == "content" and row["type"] == "table_text"
 
 
+def test_corpus_from_qdrant(tmp_path, monkeypatch):
+    from rag_evaluator.dataset.models import CorpusPage
+
+    calls = {}
+
+    def fake_fetch(base_url, collections, client=None):
+        calls["args"] = (base_url, list(collections))
+        return [CorpusPage(collection="hr", document="/nas/a.pdf", page=1,
+                           text="內文", text_source="content", type="table_text")]
+
+    monkeypatch.setattr(cli, "fetch_qdrant_pages", fake_fetch)
+    out = tmp_path / "corpus.jsonl"
+    assert cli.main([
+        "corpus", "from-qdrant", "--url", "http://localhost:6333",
+        "--collection", "hr", "-o", str(out),
+    ]) == 0
+    assert calls["args"] == ("http://localhost:6333", ["hr"])
+    row = json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert row["type"] == "table_text" and row["text_source"] == "content"
+
+
+def test_corpus_from_qdrant_url_defaults_from_env(tmp_path, monkeypatch):
+    from rag_evaluator.dataset.models import CorpusPage
+
+    calls = {}
+
+    def fake_fetch(base_url, collections, client=None):
+        calls["url"] = base_url
+        return [CorpusPage(collection="hr", document="a.pdf", page=1)]
+
+    monkeypatch.setattr(cli, "fetch_qdrant_pages", fake_fetch)
+    monkeypatch.setenv("RAG_EVAL_QDRANT_URL", "http://qdrant.lan:6333/")
+    out = tmp_path / "corpus.jsonl"
+    assert cli.main(["corpus", "from-qdrant", "--collection", "hr", "-o", str(out)]) == 0
+    assert calls["url"] == "http://qdrant.lan:6333"
+
+
 def test_dataset_finalize(tmp_path):
     review = tmp_path / "review.csv"
     review.write_text(

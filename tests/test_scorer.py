@@ -103,7 +103,7 @@ def test_score_rule_numeric_row_with_diagnostics(tmp_path):
         {"type": "table_figure", "hit": True},
         {"type": "table_figure", "hit": False},
     ]
-    assert row["judge_prompt_version"] == "v1"
+    assert row["judge_prompt_version"] == "v2"
     assert row["faithfulness_status"] == "not_applicable"  # empty claim extraction
     # manifest stamped with judge fields
     assert load_manifest(run_dir)["judge_model"] == "gemini-test"

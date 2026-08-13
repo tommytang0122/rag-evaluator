@@ -30,13 +30,32 @@ def _existing_keys(raw_path: Path) -> set[tuple[str, int, str]]:
     return keys
 
 
+BODY_LIMIT = 200
+
+
+def describe_error(exc: BaseException) -> str:
+    """把例外壓成一行診斷字串。
+
+    第一次接真實環境時 401/404/自簽憑證是常態,只記 "system_error" 會逼人
+    回頭手動 curl。下游僅以 bool(error) 判斷有無錯誤(scorer.py),字串內容
+    可自由攜帶細節。
+    """
+    response = getattr(exc, "response", None)
+    if response is not None:
+        body = " ".join(str(getattr(response, "text", "")).split())
+        return f"HTTP {response.status_code} {body[:BODY_LIMIT]}".rstrip()
+    detail = " ".join(str(exc).split())
+    return f"{type(exc).__name__}: {detail[:BODY_LIMIT]}".rstrip(": ")
+
+
 def _try_ask(fn, retries: int) -> tuple[RAGAnswer | None, str | None]:
+    last: BaseException | None = None
     for _attempt in range(retries + 1):
         try:
             return fn(), None
-        except Exception:  # noqa: BLE001 - any transport failure counts
-            continue
-    return None, "system_error"
+        except Exception as exc:  # noqa: BLE001 - any transport failure counts
+            last = exc
+    return None, f"system_error: {describe_error(last)}"
 
 
 def _row(qid: str, run: int, kind: str, answer: RAGAnswer | None, error: str | None) -> dict:

@@ -1,121 +1,12 @@
-import csv
 import json
-import random
 
 import pytest
 
-from rag_evaluator.dataset.corpus import Corpus
-from rag_evaluator.dataset.models import CorpusPage, load_dataset
+from rag_evaluator.dataset.models import load_dataset
 from rag_evaluator.dataset.generator import (
-    GeneratedQA,
-    GeneratedQASet,
     finalize_dataset,
-    generate_review_rows,
-    sample_pages,
     write_review_csv,
 )
-
-
-class ScriptedGenJudge:
-    def __init__(self, results):
-        self.results = list(results)
-        self.calls = []
-
-    def judge(self, prompt, schema, images=()):
-        self.calls.append({"prompt": prompt, "images": list(images)})
-        return self.results.pop(0)
-
-
-def _corpus(tmp_path):
-    img = tmp_path / "page_2.png"
-    img.write_bytes(b"png")
-    return Corpus([
-        CorpusPage(collection="hr", document="a.pdf", page=1,
-                   text="差旅住宿補助每日上限 2,500 元。" * 10, text_source="content"),
-        CorpusPage(collection="hr", document="b.pdf", page=2,
-                   text="", text_source="none", image_path=str(img)),
-    ])
-
-
-def test_sample_pages_covers_every_document():
-    corpus = Corpus([
-        CorpusPage(collection="hr", document="a.pdf", page=i) for i in range(1, 4)
-    ] + [CorpusPage(collection="hr", document="b.pdf", page=1)])
-    picked = sample_pages(corpus, 2, random.Random(0))
-    assert {p.document for p in picked} == {"a.pdf", "b.pdf"}  # ≥1 per doc wins over cap
-
-
-def test_generate_routes_text_and_vision(tmp_path):
-    judge = ScriptedGenJudge([
-        GeneratedQASet(items=[GeneratedQA(
-            question="住宿補助上限?", gold_answer="每日 2,500 元",
-            gold_value={"number": 2500, "unit": "元"}, tags=["numeric", "single-page"],
-        )]),
-        GeneratedQASet(items=[GeneratedQA(
-            question="圖表頁的營收?", gold_answer="12,415 千元", tags=["single-page"],
-        )]),
-        GeneratedQASet(items=[GeneratedQA(
-            question="聽起來相關但沒答案?", answer_type="refusal", tags=["unanswerable"],
-        )]),
-    ])
-    rows = generate_review_rows(_corpus(tmp_path), judge, rng=random.Random(0))
-    assert len(rows) == 3
-    assert judge.calls[1]["images"]  # vision call for the textless page
-    refusals = [r for r in rows if r["answer_type"] == "refusal"]
-    assert refusals[0]["evidence"] == "" and refusals[0]["approved"] == ""
-    answerable = [r for r in rows if r["answer_type"] == "answerable"]
-    assert answerable[0]["evidence"] == "hr|a.pdf|1"
-
-
-def test_vision_row_has_image_path_and_excerpt(tmp_path):
-    judge = ScriptedGenJudge([
-        GeneratedQASet(items=[GeneratedQA(
-            question="圖表頁的營收?", gold_answer="12,415 千元", tags=["single-page"],
-        )]),
-        GeneratedQASet(items=[GeneratedQA(
-            question="聽起來相關但沒答案?", answer_type="refusal", tags=["unanswerable"],
-        )]),
-    ])
-    img = tmp_path / "page_2.png"
-    img.write_bytes(b"png")
-    corpus = Corpus([
-        CorpusPage(collection="hr", document="b.pdf", page=2,
-                   text="", text_source="none", image_path=str(img)),
-    ])
-    rows = generate_review_rows(corpus, judge, rng=random.Random(0))
-    answerable = [r for r in rows if r["answer_type"] == "answerable"]
-    assert len(answerable) == 1
-    assert answerable[0]["image_path"] == str(img)
-    assert answerable[0]["source_excerpt"] != ""
-    assert "圖片頁" in answerable[0]["source_excerpt"]
-
-
-def test_unanswerable_basis_nonempty_for_all_image_corpus(tmp_path):
-    img1 = tmp_path / "page_1.png"
-    img1.write_bytes(b"png")
-    img2 = tmp_path / "page_2.png"
-    img2.write_bytes(b"png")
-    corpus = Corpus([
-        CorpusPage(collection="hr", document="a.pdf", page=1,
-                   text="", text_source="none", image_path=str(img1)),
-        CorpusPage(collection="hr", document="b.pdf", page=2,
-                   text="", text_source="none", image_path=str(img2)),
-    ])
-    judge = ScriptedGenJudge([
-        GeneratedQASet(items=[GeneratedQA(
-            question="圖表頁 A 的營收?", gold_answer="12,415 千元", tags=["single-page"],
-        )]),
-        GeneratedQASet(items=[GeneratedQA(
-            question="圖表頁 B 的營收?", gold_answer="9,001 千元", tags=["single-page"],
-        )]),
-        GeneratedQASet(items=[GeneratedQA(
-            question="聽起來相關但沒答案?", answer_type="refusal", tags=["unanswerable"],
-        )]),
-    ])
-    rows = generate_review_rows(corpus, judge, rng=random.Random(0))
-    refusals = [r for r in rows if r["answer_type"] == "refusal"]
-    assert refusals
-    assert refusals[0]["generation_basis"] != ""
 
 
 def test_review_csv_roundtrip_and_finalize(tmp_path):
@@ -156,16 +47,14 @@ def test_finalize_rejects_duplicate_questions(tmp_path):
         finalize_dataset(review, tmp_path / "d.jsonl")
 
 
-def test_vision_prompt_has_injection_guard():
-    from rag_evaluator.dataset.generator import GEN_VISION_PROMPT
-    assert "忽略" in GEN_VISION_PROMPT
-
-
-def test_sample_pages_same_name_across_collections(tmp_path):
-    from rag_evaluator.dataset.models import CorpusPage
-    corpus = Corpus([
-        CorpusPage(collection="a", document="policy.pdf", page=1),
-        CorpusPage(collection="b", document="policy.pdf", page=1),
-    ])
-    picked = sample_pages(corpus, None, random.Random(0))
-    assert {(p.collection, p.document) for p in picked} == {("a", "policy.pdf"), ("b", "policy.pdf")}
+def test_finalize_multi_page_evidence(tmp_path):
+    row = {"question": "跨頁題?", "gold_answer": "A 8,084;B 75,626", "gold_value": "",
+           "answer_type": "answerable", "tags": "numeric,cross-page",
+           "evidence": "hr|a.pdf|1;hr|a.pdf|4",
+           "source_excerpt": "", "generation_basis": "", "approved": "yes"}
+    review = tmp_path / "review.csv"
+    write_review_csv([row], review)
+    out = tmp_path / "d.jsonl"
+    assert finalize_dataset(review, out) == 1
+    items = load_dataset(out)
+    assert [e.page for e in items[0].evidence] == [1, 4]

@@ -12,12 +12,14 @@ from dotenv import load_dotenv
 
 from rag_evaluator.adapters.nas_rag import build_adapter
 from rag_evaluator.config import load_system_config
-from rag_evaluator.dataset.corpus import CorpusError, convert_nas_rag_manifest, load_corpus, write_corpus
-from rag_evaluator.dataset.generator import (
-    finalize_dataset,
-    generate_review_rows,
-    write_review_csv,
+from rag_evaluator.dataset.corpus import (
+    CorpusError,
+    convert_nas_rag_manifest,
+    fetch_qdrant_pages,
+    load_corpus,
+    write_corpus,
 )
+from rag_evaluator.dataset.generator import finalize_dataset
 from rag_evaluator.dataset.models import load_dataset
 from rag_evaluator.eval.collector import collect
 from rag_evaluator.eval.scorer import score_run
@@ -58,14 +60,12 @@ def _cmd_corpus_from_nas_rag(args) -> int:
     return 0
 
 
-def _cmd_dataset_generate(args) -> int:
-    corpus = load_corpus(Path(args.corpus))
-    judge = _build_judge(args)
-    rows = generate_review_rows(
-        corpus, judge, sample_pages_count=args.sample_pages
-    )
-    write_review_csv(rows, Path(args.output))
-    print(f"wrote {len(rows)} candidate questions to {args.output} (approved 欄請人工填寫;unanswerable 題預設不核可)")
+def _cmd_corpus_from_qdrant(args) -> int:
+    load_dotenv()
+    url = args.url or os.environ.get("RAG_EVAL_QDRANT_URL", "http://localhost:6333")
+    pages = fetch_qdrant_pages(url.rstrip("/"), args.collection)
+    write_corpus(pages, Path(args.output))
+    print(f"wrote {len(pages)} pages to {args.output}")
     return 0
 
 
@@ -210,13 +210,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", required=True)
     p.set_defaults(func=_cmd_corpus_from_nas_rag)
 
-    dataset = sub.add_parser("dataset").add_subparsers(dest="subcommand", required=True)
-    p = dataset.add_parser("generate")
-    p.add_argument("--corpus", required=True)
+    p = corpus.add_parser("from-qdrant")
+    p.add_argument("--url", default=None,
+                   help="預設讀 RAG_EVAL_QDRANT_URL,再退到 http://localhost:6333")
+    p.add_argument("--collection", action="append", required=True,
+                   help="可重複指定多個 collection")
     p.add_argument("-o", "--output", required=True)
-    p.add_argument("--sample-pages", type=int, default=None)
-    p.add_argument("--model", default=None)
-    p.set_defaults(func=_cmd_dataset_generate)
+    p.set_defaults(func=_cmd_corpus_from_qdrant)
+
+    dataset = sub.add_parser("dataset").add_subparsers(dest="subcommand", required=True)
+    # 出題(草擬 review.csv)由 .claude/skills/generate-golden-questions 這個
+    # agent skill 負責——agent 親讀頁面 PNG 出題;此處只留人工核可後的 finalize。
     p = dataset.add_parser("finalize")
     p.add_argument("--review", required=True)
     p.add_argument("-o", "--output", required=True)
